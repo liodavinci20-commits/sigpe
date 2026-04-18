@@ -3,7 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
 import {
   GraduationCap, Users, BookOpen, AlertTriangle,
-  Clock, CalendarCheck, MessageSquare, Send, Loader
+  Clock, CalendarCheck, MessageSquare, Send, Loader,
+  Bell, RefreshCw
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -11,13 +12,22 @@ const Dashboard = () => {
   const [toast, setToast] = useState(null);
 
   // Stats réelles admin
-  const [stats, setStats]       = useState({ students: 0, teachers: 0, classes: 0, messages: 0 });
-  const [activities, setActivities] = useState([]);
+  const [stats,        setStats]        = useState({ students: 0, teachers: 0, classes: 0, messages: 0 });
+  const [activities,   setActivities]   = useState([]);
   const [loadingStats, setLoadingStats] = useState(true);
 
+  // Notifications enseignant
+  const [teacherNotifs,        setTeacherNotifs]        = useState([]);
+  const [loadingTeacherNotifs, setLoadingTeacherNotifs] = useState(false);
+  // Vraies classes du prof
+  const [myClasses,    setMyClasses]    = useState([]);
+
   useEffect(() => {
-    if (user?.role === 'admin' && !user?.isDemo) {
+    if (!user) return;
+    if (user.role === 'admin' && !user.isDemo) {
       fetchAdminStats();
+    } else if (user.role === 'teacher_course' && !user.isDemo) {
+      fetchTeacherData();
     } else {
       setLoadingStats(false);
     }
@@ -50,6 +60,33 @@ const Dashboard = () => {
     } catch (err) {
       console.error('Erreur chargement stats:', err);
     } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  const fetchTeacherData = async () => {
+    setLoadingTeacherNotifs(true);
+    try {
+      const [{ data: notifRows }, { data: csRows }] = await Promise.all([
+        // Notifications visibles par le personnel (all ou staff)
+        supabase
+          .from('notifications')
+          .select('*')
+          .in('target_group', ['all', 'staff'])
+          .order('created_at', { ascending: false })
+          .limit(10),
+        // Classes du prof
+        supabase
+          .from('class_subjects')
+          .select('classes(name, level), subjects(name)')
+          .eq('teacher_id', user.id),
+      ]);
+      setTeacherNotifs(notifRows || []);
+      setMyClasses(csRows || []);
+    } catch (err) {
+      console.error('Erreur données enseignant:', err);
+    } finally {
+      setLoadingTeacherNotifs(false);
       setLoadingStats(false);
     }
   };
@@ -241,12 +278,13 @@ const Dashboard = () => {
       {/* ── TEACHER COURSE ── */}
       {user?.role === 'teacher_course' && (
         <>
+          {/* Stats rapides */}
           <div className="stats-grid">
             {[
-              { icon: <Clock size={28} />,         color: 'blue',  label: "Cours Aujourd'hui", value: 4,   trend: 'Prochain: 10h30' },
-              { icon: <CalendarCheck size={28} />, color: 'amber', label: 'Copies à corriger', value: 42,  trend: 'Séquence 2' },
-              { icon: <GraduationCap size={28} />, color: 'green', label: 'Mes Élèves',         value: 138, trend: 'Dans 4 classes' },
-              { icon: <MessageSquare size={28} />, color: 'blue',  label: 'Messages Parents',   value: 3,   trend: 'Nouveaux' },
+              { icon: <GraduationCap size={28} />, color: 'green', label: 'Mes Classes',      value: myClasses.length || '—', trend: myClasses.length > 0 ? `${myClasses.length} classe(s) assignée(s)` : 'Aucune classe encore' },
+              { icon: <Bell size={28} />,          color: 'blue',  label: 'Notifications',    value: teacherNotifs.filter(n => !n.is_read).length || '—', trend: teacherNotifs.length > 0 ? `${teacherNotifs.length} message(s) admin` : 'Aucun message' },
+              { icon: <Clock size={28} />,         color: 'amber', label: "Cours Aujourd'hui", value: '—', trend: 'Emploi du temps à configurer' },
+              { icon: <MessageSquare size={28} />, color: 'blue',  label: 'Messages Parents',  value: '—', trend: 'Module en cours' },
             ].map((s, i) => (
               <div key={i} className="stat-card">
                 <div className={`stat-icon ${s.color}`}>{s.icon}</div>
@@ -258,14 +296,112 @@ const Dashboard = () => {
               </div>
             ))}
           </div>
-          <div className="card" style={{ marginTop: '20px' }}>
-            <div className="card-header">
-              <div><h3>Vos Classes & Saisie Rapide</h3><p>Outils du quotidien</p></div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginTop: '20px' }}>
+
+            {/* Notifications de l'administration */}
+            <div className="card">
+              <div className="card-header">
+                <div>
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Bell size={18} /> Notifications Administration
+                  </h3>
+                  <p>Messages envoyés par l'administration ou la direction</p>
+                </div>
+                <button className="btn-sm btn-outline" onClick={fetchTeacherData}
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
+                  <RefreshCw size={12} /> Actualiser
+                </button>
+              </div>
+              <div className="card-body">
+                {loadingTeacherNotifs ? (
+                  <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                    <Loader size={18} /> Chargement…
+                  </div>
+                ) : teacherNotifs.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '28px', color: 'var(--text-light)', fontSize: '13px' }}>
+                    <Bell size={28} style={{ marginBottom: '10px', opacity: 0.3 }} />
+                    <p style={{ margin: 0 }}>Aucune notification pour le moment.</p>
+                    <p style={{ fontSize: '12px', marginTop: '6px' }}>Les messages de l'administration apparaîtront ici.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {teacherNotifs.map(n => {
+                      const t = typeColor[n.type] || typeColor.info;
+                      return (
+                        <div key={n.id} style={{
+                          display: 'flex', gap: '12px', alignItems: 'flex-start',
+                          padding: '12px', borderRadius: '10px',
+                          background: 'var(--bg)', border: `1px solid ${n.is_read ? 'var(--border)' : t.color}`,
+                          position: 'relative'
+                        }}>
+                          {!n.is_read && (
+                            <div style={{ position: 'absolute', top: '10px', right: '10px', width: '8px', height: '8px', borderRadius: '50%', background: t.color }} />
+                          )}
+                          <span style={{
+                            fontSize: '11px', background: t.bg, color: t.color,
+                            padding: '2px 8px', borderRadius: '4px', fontWeight: 700,
+                            whiteSpace: 'nowrap', flexShrink: 0, height: 'fit-content'
+                          }}>
+                            {t.label}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-dark)', marginBottom: '3px' }}>{n.title}</div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-light)', lineHeight: 1.5 }}>{n.content}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '6px' }}>{fmtDate(n.created_at)}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="card-body" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              <button className="btn-sm btn-green" style={{ flex: 1 }}>✅ Faire l'appel</button>
-              <button className="btn-sm btn-outline" style={{ flex: 1 }}>📝 Saisir des notes</button>
-              <button className="btn-sm btn-outline" style={{ flex: 1, borderColor: 'var(--red)', color: 'var(--red)' }}>🚨 Alerte Pédago.</button>
+
+            {/* Mes classes */}
+            <div className="card">
+              <div className="card-header">
+                <div>
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <GraduationCap size={18} /> Mes Classes
+                  </h3>
+                  <p>Classes assignées lors de votre inscription</p>
+                </div>
+              </div>
+              <div className="card-body">
+                {myClasses.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '28px', color: 'var(--text-light)', fontSize: '13px' }}>
+                    <GraduationCap size={28} style={{ marginBottom: '10px', opacity: 0.3 }} />
+                    <p style={{ margin: 0 }}>Aucune classe assignée.</p>
+                    <p style={{ fontSize: '12px', marginTop: '6px' }}>Complétez votre profil pour voir vos classes.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {myClasses.map((cs, i) => (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '10px 14px', borderRadius: '8px',
+                        background: 'var(--bg)', border: '1px solid var(--border)'
+                      }}>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-dark)' }}>
+                            {cs.classes?.name || '—'}
+                          </div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '2px' }}>
+                            {cs.classes?.level || ''}
+                          </div>
+                        </div>
+                        <span style={{
+                          fontSize: '12px', fontWeight: 600, color: 'var(--green)',
+                          background: 'rgba(34,197,94,0.1)', padding: '3px 10px', borderRadius: '6px'
+                        }}>
+                          {cs.subjects?.name || '—'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </>

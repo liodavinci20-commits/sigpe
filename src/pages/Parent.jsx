@@ -71,12 +71,8 @@ const Parent = () => {
 
   useEffect(() => {
     if (!user) return;
-    if (user.isDemo) {
-      setData(MOCK);
-      setLoading(false);
-    } else {
-      fetchRealData();
-    }
+    if (user.isDemo) { setData(MOCK); setLoading(false); return; }
+    fetchRealData();
   }, [user]);
 
   const fetchRealData = async () => {
@@ -102,8 +98,7 @@ const Parent = () => {
       const childId  = child?.id;
 
       if (!childId) {
-        // Aucun enfant lié — afficher le portail vide
-        setData({ ...MOCK, childId: null, noChild: true });
+        setData({ noChild: true, parentName: user.name, child: {}, grades: [], attendance: { presencePct: 0, presentPct: 0, excusedPct: 0, absentPct: 0, absenceCount: 0 }, chartData: [], notifications: [], avg: null, sequence: '—' });
         setLoading(false);
         return;
       }
@@ -192,7 +187,7 @@ const Parent = () => {
       });
     } catch (err) {
       console.error('Erreur portail parent:', err);
-      setData(MOCK);
+      setToast('❌ Impossible de charger les données : ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -265,14 +260,30 @@ const Parent = () => {
 
       {/* Bannière parent */}
       <div className="parent-banner">
-        <img
-          src={child.avatar || 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=120&q=80'}
-          alt="Élève"
-          onError={e => { e.target.style.background = 'rgba(255,255,255,0.2)'; }}
-        />
+        {/* Avatar de l'enfant */}
+        {child.avatar
+          ? <img src={child.avatar} alt="Élève" onError={e => { e.target.style.display='none'; }} />
+          : (
+            <div style={{
+              width: '56px', height: '56px', borderRadius: '50%', flexShrink: 0,
+              background: 'rgba(255,255,255,0.2)', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              fontSize: '22px', fontWeight: 700, color: '#fff'
+            }}>
+              {child.name ? child.name[0].toUpperCase() : '?'}
+            </div>
+          )
+        }
         <div>
-          <h3>Bonjour, {parentName}</h3>
-          <p>Suivi de votre enfant : <strong>{child.name}</strong> · {child.className} · ENS Yaoundé</p>
+          <h3 style={{ margin: '0 0 4px', fontSize: '13px', opacity: 0.8, fontWeight: 500 }}>
+            Bonjour, {parentName}
+          </h3>
+          <p style={{ margin: 0, fontSize: '17px', fontWeight: 700 }}>
+            Parent de <span style={{ color: '#bbf7d0' }}>{child.name || '—'}</span>
+          </p>
+          <p style={{ margin: '4px 0 0', fontSize: '13px', opacity: 0.75 }}>
+            {child.className || 'Classe non assignée'} · ENS Yaoundé
+          </p>
         </div>
         <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
           <div style={{ fontSize: '28px', fontWeight: 800, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
@@ -372,36 +383,49 @@ const Parent = () => {
             <div><h3 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={18} /> Suivi des Présences</h3></div>
           </div>
           <div className="card-body">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '16px' }}>
-              <div className="donut-wrap" style={{ width: '100px', height: '100px' }}>
-                <svg viewBox="0 0 100 100" width="100" height="100">
-                  <circle cx="50" cy="50" r="38" fill="none" stroke="#E5E7EB" strokeWidth="10" />
-                  <circle cx="50" cy="50" r="38" fill="none" stroke="var(--green)" strokeWidth="10"
-                    strokeDasharray={donutDash} strokeLinecap="round" />
-                </svg>
-                <div className="donut-label">
-                  <span style={{ fontSize: '18px' }}>{attendance.presencePct}%</span>
-                  <small>Présence</small>
-                </div>
+            {attendance.presencePct === 0 && attendance.absenceCount === 0 ? (
+              <div style={{ textAlign: 'center', padding: '28px 0', color: 'var(--text-light)', fontSize: '13px' }}>
+                Aucune donnée de présence disponible.
               </div>
-              <div style={{ flex: 1 }}>
-                {[
-                  { label: '◉ Présent', pct: attendance.presentPct, color: 'var(--green)' },
-                  { label: '◉ Just.',   pct: attendance.excusedPct, color: 'var(--amber)' },
-                  { label: '◉ Abs.',    pct: attendance.absentPct,  color: 'var(--red)'   },
-                ].map(row => (
-                  <div key={row.label} className="perf-row" style={{ marginBottom: '8px' }}>
-                    <span style={{ fontSize: '12px', color: 'var(--text-mid)' }}>{row.label}</span>
-                    <div className="prog-bar-wrap"><div className="prog-bar" style={{ width: `${row.pct}%`, background: row.color }} /></div>
-                    <strong style={{ fontSize: '12px', color: 'var(--text-dark)' }}>{row.pct}%</strong>
+            ) : (
+              <>
+                {/* Donut */}
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+                  <div className="donut-wrap">
+                    <svg viewBox="0 0 100 100" width="130" height="130">
+                      <circle cx="50" cy="50" r="38" fill="none" stroke="var(--bg, #1e293b)" strokeWidth="10" />
+                      <circle cx="50" cy="50" r="38" fill="none" stroke="#E2E8F0" strokeWidth="10" />
+                      <circle cx="50" cy="50" r="38" fill="none" stroke="var(--green)" strokeWidth="10"
+                        strokeDasharray={donutDash} strokeLinecap="round" />
+                    </svg>
+                    <div className="donut-label">
+                      <span>{attendance.presencePct}%</span>
+                      <small>Présence</small>
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-            {attendance.absenceCount > 0 && (
-              <div style={{ background: 'var(--green-pale,#dcfce7)', padding: '10px 14px', borderRadius: '8px', fontSize: '12px', color: 'var(--green)', fontWeight: 600 }}>
-                ✓ {attendance.absenceCount} absence{attendance.absenceCount > 1 ? 's' : ''} enregistrée{attendance.absenceCount > 1 ? 's' : ''}
-              </div>
+                </div>
+                {/* Barres */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {[
+                    { label: 'Présent',  pct: attendance.presentPct, color: 'var(--green)' },
+                    { label: 'Justifié', pct: attendance.excusedPct, color: 'var(--amber)' },
+                    { label: 'Absent',   pct: attendance.absentPct,  color: 'var(--red)'   },
+                  ].map(row => (
+                    <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-mid)', width: '60px', flexShrink: 0 }}>{row.label}</span>
+                      <div style={{ flex: 1, height: '8px', background: 'var(--bg, #0f172a)', borderRadius: '20px', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${Math.max(row.pct, row.pct > 0 ? 2 : 0)}%`, background: row.color, borderRadius: '20px', transition: 'width 0.8s ease' }} />
+                      </div>
+                      <strong style={{ fontSize: '12px', color: 'var(--text-dark)', width: '36px', textAlign: 'right' }}>{row.pct}%</strong>
+                    </div>
+                  ))}
+                </div>
+                {attendance.absenceCount > 0 && (
+                  <div style={{ marginTop: '14px', background: 'rgba(239,68,68,0.08)', border: '1px solid var(--red)', padding: '10px 14px', borderRadius: '8px', fontSize: '12px', color: 'var(--red)', fontWeight: 600 }}>
+                    ⚠ {attendance.absenceCount} absence{attendance.absenceCount > 1 ? 's' : ''} enregistrée{attendance.absenceCount > 1 ? 's' : ''}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

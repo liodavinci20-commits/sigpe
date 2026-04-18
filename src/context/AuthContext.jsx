@@ -5,12 +5,18 @@ import { supabase } from '../supabaseClient';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user,        setUser]        = useState(null);
+  const [authLoading, setAuthLoading] = useState(true); // true tant que la session n'est pas vérifiée
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Vérification initiale de la session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) loadRealProfile(session.user);
+      if (session?.user) {
+        loadRealProfile(session.user);
+      } else {
+        setAuthLoading(false); // pas de session → on peut montrer le login
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -18,6 +24,7 @@ export const AuthProvider = ({ children }) => {
         loadRealProfile(session.user);
       } else {
         setUser((prev) => prev?.isDemo ? prev : null);
+        setAuthLoading(false);
       }
     });
 
@@ -54,6 +61,7 @@ export const AuthProvider = ({ children }) => {
       });
       routeByRole('student', false);
     }
+    setAuthLoading(false);
   };
 
   const getDisplayRole = (role) => {
@@ -70,13 +78,14 @@ export const AuthProvider = ({ children }) => {
   };
 
   const routeByRole = (role, onboardingCompleted = true) => {
-    // Élève non onboardé → page de complétion de profil
-    if (role === 'student' && !onboardingCompleted) {
-      navigate('/onboarding');
-      return;
-    }
-    if (role === 'parent')  { navigate('/parent');    return; }
-    if (role === 'student') { navigate('/profile');   return; }
+    if (role === 'student'        && !onboardingCompleted) { navigate('/onboarding');              return; }
+    if (role === 'parent'         && !onboardingCompleted) { navigate('/onboarding-parent');       return; }
+    if (role === 'teacher_course' && !onboardingCompleted) { navigate('/onboarding-teacher');      return; }
+    if (role === 'teacher_head'   && !onboardingCompleted) { navigate('/onboarding-teacher-head'); return; }
+    if (role === 'counselor'      && !onboardingCompleted) { navigate('/onboarding-counselor');     return; }
+    if (role === 'parent')  { navigate('/parent');   return; }
+    if (role === 'student') { navigate('/profile');  return; }
+    if (role === 'teacher_course') { navigate('/grades'); return; }
     navigate('/dashboard');
   };
 
@@ -108,7 +117,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, login, logout }}>
+    <AuthContext.Provider value={{ user, setUser, authLoading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

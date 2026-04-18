@@ -107,12 +107,14 @@ CREATE TABLE grades (
   class_subject_id     UUID REFERENCES class_subjects(id) ON DELETE CASCADE NOT NULL,
   teacher_id           UUID REFERENCES profiles(id) ON DELETE SET NULL,
   sequence_id          UUID REFERENCES sequences(id) ON DELETE CASCADE NOT NULL,
+  evaluation_type      TEXT NOT NULL DEFAULT 'devoir1'
+                         CHECK (evaluation_type IN ('devoir1','devoir2','composition')),
   note                 NUMERIC(4, 2) NOT NULL CHECK (note >= 0 AND note <= 20),
   coefficient_override INTEGER,
   comment              TEXT,
   created_at           TIMESTAMPTZ DEFAULT now() NOT NULL,
   updated_at           TIMESTAMPTZ DEFAULT now() NOT NULL,
-  UNIQUE (student_id, class_subject_id, sequence_id)
+  UNIQUE (student_id, class_subject_id, sequence_id, evaluation_type)
 );
 
 -- 10. ATTENDANCE

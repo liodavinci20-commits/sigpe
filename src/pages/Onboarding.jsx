@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
-import { GraduationCap, User, Camera, CheckCircle, AlertTriangle, ChevronRight, ChevronLeft } from 'lucide-react';
+import { GraduationCap, User, Camera, CheckCircle, AlertTriangle, ChevronRight, ChevronLeft, Loader } from 'lucide-react';
 
 const STEPS = [
   { id: 1, label: 'Identité',  icon: <User size={18} /> },
@@ -27,10 +27,22 @@ const Onboarding = () => {
   const [avatarFile,    setAvatarFile]    = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
 
-  // Étape 2 — Scolarité (info affichée seulement, classe assignée par admin)
+  // Étape 2 — Scolarité
+  const [classes,       setClasses]       = useState([]);
+  const [loadingClasses, setLoadingClasses] = useState(false);
+  const [selectedClassId, setSelectedClassId] = useState('');
+
   // Étape 3 — Famille
   const [parentPhone,   setParentPhone]   = useState('');
   const [guardianType,  setGuardianType]  = useState('');
+
+  // Charger les classes quand on arrive à l'étape 2
+  useEffect(() => {
+    if (step !== 2 || classes.length > 0) return;
+    setLoadingClasses(true);
+    supabase.from('classes').select('id, name, level').order('name')
+      .then(({ data }) => { setClasses(data || []); setLoadingClasses(false); });
+  }, [step]);
 
   const showNotif = (type, text) => {
     setNotification({ type, text });
@@ -60,6 +72,7 @@ const Onboarding = () => {
 
   const handleNext = () => {
     if (step === 1 && !validateStep1()) return;
+    if (step === 2 && !selectedClassId) { showNotif('error', 'Veuillez choisir votre classe.'); return; }
     setStep(s => s + 1);
   };
 
@@ -78,21 +91,28 @@ const Onboarding = () => {
           .from('avatars')
           .upload(path, avatarFile, { upsert: true });
 
-        if (!uploadError) {
+        if (uploadError) {
+          // Bucket manquant ou erreur réseau — on prévient mais on continue
+          console.error('Avatar upload error:', uploadError.message);
+          showNotif('error', `Photo non sauvegardée : ${uploadError.message}`);
+          await new Promise(r => setTimeout(r, 2500));
+        } else {
           const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
           avatarUrl = urlData.publicUrl;
         }
       }
 
       // Mettre à jour profiles
+      const profileUpdate = {
+        full_name:            fullName.trim(),
+        onboarding_completed: true,
+        updated_at:           new Date().toISOString()
+      };
+      if (avatarUrl) profileUpdate.avatar_url = avatarUrl;
+
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({
-          full_name:            fullName.trim(),
-          avatar_url:           avatarUrl,
-          onboarding_completed: true,
-          updated_at:           new Date().toISOString()
-        })
+        .update(profileUpdate)
         .eq('id', user.id);
 
       if (profileError) throw profileError;
@@ -106,11 +126,20 @@ const Onboarding = () => {
           blood_type:    bloodType || null,
           city:          city.trim(),
           parent_phone:  parentPhone.trim(),
-          guardian_type: guardianType
+          guardian_type: guardianType,
+          class_id:      selectedClassId || null,
         })
         .eq('id', user.id);
 
       if (studentError) throw studentError;
+
+      // Mettre à jour le contexte local pour que Profile voit immédiatement la photo
+      setUser(prev => ({
+        ...prev,
+        name:      fullName.trim(),
+        avatarUrl: avatarUrl || prev.avatarUrl,
+        onboardingCompleted: true
+      }));
 
       showNotif('success', 'Profil complété ! Bienvenue sur SIGPE.');
       setTimeout(() => navigate('/profile'), 1500);
@@ -249,34 +278,46 @@ const Onboarding = () => {
         {/* ── ÉTAPE 2 : Scolarité ── */}
         {step === 2 && (
           <div style={{ animation: 'fadeIn 0.3s' }}>
-            <div style={{
-              background: 'rgba(34,197,94,0.07)', border: '1px solid var(--green)',
-              borderRadius: '12px', padding: '20px', marginBottom: '20px'
-            }}>
-              <p style={{ color: 'var(--text-light, #94a3b8)', fontSize: '13px', margin: '0 0 16px', lineHeight: 1.6 }}>
-                Votre <strong style={{ color: 'var(--text-dark, #f1f5f9)' }}>matricule</strong> et votre <strong style={{ color: 'var(--text-dark, #f1f5f9)' }}>classe</strong> seront assignés par l'administration après validation de votre dossier.
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {[
-                  { label: 'Matricule', value: 'En cours de génération…' },
-                  { label: 'Classe assignée', value: 'En attente d\'affectation' },
-                  { label: 'Année scolaire', value: '2024 – 2025' },
-                ].map(item => (
-                  <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '13px', color: 'var(--text-light, #94a3b8)' }}>{item.label}</span>
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-dark, #f1f5f9)' }}>{item.value}</span>
-                  </div>
-                ))}
+            <p style={{ color: 'var(--text-light, #94a3b8)', fontSize: '13px', marginBottom: '18px', lineHeight: 1.6 }}>
+              Choisissez la <strong style={{ color: 'var(--text-dark, #f1f5f9)' }}>classe</strong> dans laquelle vous êtes inscrit(e) pour l'année 2024–2025.
+            </p>
+
+            {loadingClasses ? (
+              <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                <Loader size={20} /> Chargement des classes…
               </div>
-            </div>
-            <div style={{
-              background: 'rgba(249,115,22,0.07)', border: '1px solid var(--orange, #f97316)',
-              borderRadius: '10px', padding: '14px 16px'
-            }}>
-              <p style={{ color: 'var(--orange, #f97316)', fontSize: '13px', margin: 0, fontWeight: 600 }}>
-                ℹ️ Votre profil sera visible par vos enseignants et l'administration une fois validé.
-              </p>
-            </div>
+            ) : classes.length === 0 ? (
+              <div style={{ padding: '16px', borderRadius: '10px', background: 'rgba(249,115,22,0.07)', border: '1px solid var(--orange,#f97316)', color: 'var(--orange,#f97316)', fontSize: '13px' }}>
+                Aucune classe disponible pour le moment. Contactez l'administration.
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', maxHeight: '280px', overflowY: 'auto' }}>
+                {classes.map(cls => {
+                  const selected = selectedClassId === cls.id;
+                  return (
+                    <div key={cls.id} onClick={() => setSelectedClassId(cls.id)} style={{
+                      padding: '14px', borderRadius: '12px', cursor: 'pointer',
+                      border: `1.5px solid ${selected ? 'var(--green)' : 'rgba(255,255,255,0.1)'}`,
+                      background: selected ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.03)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      transition: 'all 0.2s',
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-dark, #f1f5f9)' }}>{cls.name}</div>
+                        {cls.level && <div style={{ fontSize: '11px', color: 'var(--text-light, #94a3b8)', marginTop: '2px' }}>{cls.level}</div>}
+                      </div>
+                      {selected && <CheckCircle size={18} color="var(--green)" />}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {selectedClassId && (
+              <div style={{ marginTop: '14px', padding: '10px 14px', borderRadius: '8px', background: 'rgba(34,197,94,0.07)', fontSize: '13px', color: 'var(--green)', fontWeight: 600 }}>
+                ✓ Classe sélectionnée : {classes.find(c => c.id === selectedClassId)?.name}
+              </div>
+            )}
           </div>
         )}
 

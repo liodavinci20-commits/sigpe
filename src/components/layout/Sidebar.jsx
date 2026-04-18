@@ -1,11 +1,63 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { GraduationCap, LayoutDashboard, Users, UserSquare2, FileText, ClipboardList, CalendarDays, TrendingUp, Contact, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../supabaseClient';
 
 const Sidebar = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [studentCount, setStudentCount] = useState(null);
+
+  useEffect(() => {
+    if (!user || user.isDemo) return;
+    loadStudentCount();
+  }, [user]);
+
+  const loadStudentCount = async () => {
+    try {
+      if (user.role === 'admin' || user.role === 'sub_admin') {
+        const { count } = await supabase
+          .from('students')
+          .select('*', { count: 'exact', head: true });
+        setStudentCount(count ?? 0);
+
+      } else if (user.role === 'teacher_course') {
+        const { data: csRows } = await supabase
+          .from('class_subjects')
+          .select('class_id')
+          .eq('teacher_id', user.id);
+        const classIds = [...new Set((csRows || []).map(r => r.class_id))];
+        if (classIds.length === 0) { setStudentCount(0); return; }
+        const { count } = await supabase
+          .from('students')
+          .select('*', { count: 'exact', head: true })
+          .in('class_id', classIds);
+        setStudentCount(count ?? 0);
+
+      } else if (user.role === 'teacher_head') {
+        const { data: clsRows } = await supabase
+          .from('classes')
+          .select('id')
+          .eq('head_teacher_id', user.id);
+        const classIds = (clsRows || []).map(r => r.id);
+        if (classIds.length === 0) { setStudentCount(0); return; }
+        const { count } = await supabase
+          .from('students')
+          .select('*', { count: 'exact', head: true })
+          .in('class_id', classIds);
+        setStudentCount(count ?? 0);
+
+      } else if (user.role === 'counselor') {
+        const { count } = await supabase
+          .from('students')
+          .select('*', { count: 'exact', head: true });
+        setStudentCount(count ?? 0);
+      }
+    } catch (err) {
+      console.error('Erreur comptage élèves:', err);
+    }
+  };
   
   const handleLogout = () => {
     logout();
@@ -46,13 +98,20 @@ const Sidebar = () => {
         {(user?.role === 'admin' || user?.role === 'teacher_course' || user?.role === 'teacher_head' || user?.role === 'counselor') && (
           <NavLink to="/students" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
             <span className="nav-icon"><Users size={18} /></span> Élèves
-            <span className="nav-badge green">1 247</span>
+            {studentCount !== null && (
+              <span className="nav-badge green">{studentCount.toLocaleString('fr-FR')}</span>
+            )}
           </NavLink>
         )}
         
-        {(user?.role === 'admin' || user?.role === 'parent' || user?.role === 'counselor' || user?.role === 'student') && (
+        {(user?.role === 'admin' || user?.role === 'counselor' || user?.role === 'student') && (
           <NavLink to="/profile" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
             <span className="nav-icon"><UserSquare2 size={18} /></span> Profil Élève
+          </NavLink>
+        )}
+        {user?.role === 'parent' && (
+          <NavLink to="/profile" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+            <span className="nav-icon"><UserSquare2 size={18} /></span> Profil de mon enfant
           </NavLink>
         )}
         

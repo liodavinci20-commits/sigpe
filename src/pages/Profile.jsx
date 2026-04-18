@@ -85,6 +85,23 @@ const Profile = () => {
   const fetchRealData = async () => {
     setLoading(true);
     try {
+      // Si l'utilisateur est un parent, on charge le profil de son enfant
+      let studentId = user.id;
+      if (user.role === 'parent') {
+        const { data: link } = await supabase
+          .from('student_parents')
+          .select('student_id')
+          .eq('parent_id', user.id)
+          .limit(1)
+          .single();
+        if (!link?.student_id) {
+          setData({ ...MOCK, noChild: true });
+          setLoading(false);
+          return;
+        }
+        studentId = link.student_id;
+      }
+
       // 1. Infos élève + profil + classe
       const { data: studentRow } = await supabase
         .from('students')
@@ -93,7 +110,7 @@ const Profile = () => {
           profiles ( full_name, avatar_url ),
           classes  ( name, level )
         `)
-        .eq('id', user.id)
+        .eq('id', studentId)
         .single();
 
       // 2. Toutes les notes (toutes séquences) pour le graphique et le tableau
@@ -104,20 +121,20 @@ const Profile = () => {
           class_subjects ( coefficient, subjects ( name ) ),
           sequences      ( id, label, number, is_active )
         `)
-        .eq('student_id', user.id)
+        .eq('student_id', studentId)
         .order('sequences(number)');
 
       // 3. Présences
       const { data: attendanceRows } = await supabase
         .from('attendance')
         .select('status')
-        .eq('student_id', user.id);
+        .eq('student_id', studentId);
 
-      // 4. Notifications destinées à cet élève
+      // 4. Notifications
       const { data: notifRows } = await supabase
         .from('notifications')
         .select('*')
-        .or(`recipient_id.eq.${user.id},target_group.eq.all,target_group.eq.students`)
+        .or(`recipient_id.eq.${studentId},target_group.eq.all,target_group.eq.students`)
         .order('created_at', { ascending: false })
         .limit(5);
 

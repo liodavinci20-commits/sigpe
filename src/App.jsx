@@ -7,6 +7,10 @@ import { AuthProvider } from './context/AuthContext';
 
 import Login from './pages/Login';
 import Onboarding from './pages/Onboarding';
+import OnboardingParent  from './pages/OnboardingParent';
+import OnboardingTeacher     from './pages/OnboardingTeacher';
+import OnboardingTeacherHead from './pages/OnboardingTeacherHead';
+import OnboardingCounselor   from './pages/OnboardingCounselor';
 import Dashboard from './pages/Dashboard';
 import Students from './pages/Students';
 import Profile from './pages/Profile';
@@ -25,7 +29,11 @@ const App = () => {
 
           {/* Onboarding : protégé mais sans sidebar */}
           <Route element={<ProtectedRoute />}>
-            <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/onboarding"         element={<Onboarding />} />
+            <Route path="/onboarding-parent"  element={<OnboardingParent />} />
+            <Route path="/onboarding-teacher"      element={<OnboardingTeacher />} />
+            <Route path="/onboarding-teacher-head" element={<OnboardingTeacherHead />} />
+            <Route path="/onboarding-counselor"    element={<OnboardingCounselor />} />
           </Route>
 
           {/* Routes privées: Si Non connecté -> redirige Login */}
