@@ -109,16 +109,21 @@ const Sidebar = () => {
             <span className="nav-icon"><UserSquare2 size={18} /></span> Profil Élève
           </NavLink>
         )}
+        {(user?.role === 'teacher_course' || user?.role === 'teacher_head') && (
+          <NavLink to="/teacher-profile" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+            <span className="nav-icon"><UserSquare2 size={18} /></span> Mon Profil
+          </NavLink>
+        )}
         {user?.role === 'parent' && (
           <NavLink to="/profile" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
             <span className="nav-icon"><UserSquare2 size={18} /></span> Profil de mon enfant
           </NavLink>
         )}
         
-        {(user?.role === 'admin' || user?.role === 'teacher_course' || user?.role === 'teacher_head') && (
+        {(user?.role === 'teacher_course' || user?.role === 'teacher_head') && (
           <NavLink to="/grades" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
             <span className="nav-icon"><FileText size={18} /></span> Notes & Évaluations
-            {(user?.role === 'admin' || user?.role === 'teacher_course') && <span className="nav-badge">3</span>}
+            {user?.role === 'teacher_course' && <span className="nav-badge">3</span>}
           </NavLink>
         )}
         

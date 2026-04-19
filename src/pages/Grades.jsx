@@ -114,24 +114,22 @@ const Grades = () => {
       if (studentIds.length > 0) {
         const { data: gradeRows } = await supabase
           .from('grades')
-          .select('id, student_id, note, evaluation_type')
+          .select('id, student_id, note_devoir1, note_devoir2, note_composition')
           .eq('class_subject_id', selectedCS.id)
           .eq('sequence_id', selectedSeqId)
           .in('student_id', studentIds);
 
         (gradeRows || []).forEach(g => {
-          if (!gradesMap[g.student_id]) gradesMap[g.student_id] = {};
-          gradesMap[g.student_id][g.evaluation_type || 'devoir1'] = { id: g.id, note: g.note };
+          gradesMap[g.student_id] = { id: g.id, d1: g.note_devoir1, d2: g.note_devoir2, comp: g.note_composition };
         });
       }
 
       setStudents((studentRows || []).map(s => ({
         id:   s.id,
         name: s.profiles?.full_name || s.matricule || s.id,
-        d1:   gradesMap[s.id]?.devoir1?.note   ?? null,
-        d2:   gradesMap[s.id]?.devoir2?.note   ?? null,
-        comp: gradesMap[s.id]?.composition?.note ?? null,
-        gradeIds: gradesMap[s.id] || {},
+        d1:   gradesMap[s.id]?.d1   ?? null,
+        d2:   gradesMap[s.id]?.d2   ?? null,
+        comp: gradesMap[s.id]?.comp ?? null,
       })));
     } catch (err) {
       showToast('Erreur chargement : ' + err.message, 'error');
@@ -152,35 +150,30 @@ const Grades = () => {
     if (!selectedCS || !selectedSeqId) return;
     setSaving(true);
     try {
-      const evalMap = { d1: 'devoir1', d2: 'devoir2', comp: 'composition' };
-      const upserts = [];
-
-      students.forEach(s => {
-        ['d1','d2','comp'].forEach(field => {
-          if (s[field] === null) return;
-          upserts.push({
-            student_id:      s.id,
-            class_subject_id: selectedCS.id,
-            sequence_id:     selectedSeqId,
-            teacher_id:      user.id,
-            note:            Number(s[field]),
-            evaluation_type: evalMap[field],
-            coefficient_override: null,
-          });
-        });
-      });
+      // Un seul upsert par élève (1 ligne = les 3 notes d1/d2/composition)
+      const upserts = students
+        .filter(s => s.d1 !== null || s.d2 !== null || s.comp !== null)
+        .map(s => ({
+          student_id:       s.id,
+          class_subject_id: selectedCS.id,
+          sequence_id:      selectedSeqId,
+          teacher_id:       user.id,
+          note_devoir1:     s.d1   !== null ? Number(s.d1)   : null,
+          note_devoir2:     s.d2   !== null ? Number(s.d2)   : null,
+          note_composition: s.comp !== null ? Number(s.comp) : null,
+        }));
 
       if (upserts.length > 0) {
         const { error } = await supabase
           .from('grades')
-          .upsert(upserts, { onConflict: 'student_id,class_subject_id,sequence_id,evaluation_type' });
+          .upsert(upserts, { onConflict: 'student_id,class_subject_id,sequence_id' });
         if (error) throw error;
       }
 
       // Mettre à jour le coefficient dans class_subjects
       await supabase.from('class_subjects').update({ coefficient }).eq('id', selectedCS.id);
 
-      showToast(`${upserts.length} note(s) enregistrée(s) avec succès !`);
+      showToast(`Notes de ${upserts.length} élève(s) enregistrées avec succès !`);
       await loadStudentsAndGrades();
     } catch (err) {
       showToast('Erreur sauvegarde : ' + err.message, 'error');

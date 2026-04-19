@@ -19,6 +19,7 @@ import Bulletin from './pages/Bulletin';
 import Schedule from './pages/Schedule';
 import Reports from './pages/Reports';
 import Parent from './pages/Parent';
+import TeacherProfile from './pages/TeacherProfile';
 
 const App = () => {
   return (
@@ -48,6 +49,7 @@ const App = () => {
               <Route path="/schedule" element={<Schedule />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/parent" element={<Parent />} />
+              <Route path="/teacher-profile" element={<TeacherProfile />} />
               
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Route>
