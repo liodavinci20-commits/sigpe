@@ -120,10 +120,10 @@ const Sidebar = () => {
           </NavLink>
         )}
         
-        {(user?.role === 'teacher_course' || user?.role === 'teacher_head') && (
+        {user?.role === 'teacher_course' && (
           <NavLink to="/grades" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
             <span className="nav-icon"><FileText size={18} /></span> Notes & Évaluations
-            {user?.role === 'teacher_course' && <span className="nav-badge">3</span>}
+            <span className="nav-badge">3</span>
           </NavLink>
         )}
         

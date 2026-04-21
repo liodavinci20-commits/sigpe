@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   BadgeCheck, Trophy, Eye, School, Hash, Calendar,
   MapPin, User, Users, ClipboardList, Megaphone, FileText,
-  TrendingUp, Bell, Loader, Search
+  TrendingUp, Bell, Loader, Search, BookOpen, X, Download
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
@@ -33,22 +33,15 @@ const MOCK = {
 };
 
 // ── HELPERS ───────────────────────────────────────────────────
-const rowNoteAvg = (g) => {
-  const vals = [g.note_devoir1, g.note_devoir2, g.note_composition].filter(v => v !== null && !isNaN(v));
-  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-};
-
-const weightedAvg = (grades) => {
-  if (!grades?.length) return null;
-  let pts = 0, c = 0;
-  grades.forEach(g => {
-    const note = rowNoteAvg(g);
-    if (note === null) return;
-    const coeff = g.class_subjects?.coefficient ?? 1;
-    pts += note * coeff;
-    c   += coeff;
+// Calcule la moyenne générale pondérée depuis { [subName]: { coeff, note } }
+const weightedAvgFromSubjects = (subjectsMap) => {
+  let pts = 0, totalCoeff = 0;
+  Object.values(subjectsMap || {}).forEach(s => {
+    if (s.note === null) return;
+    pts += s.note * (s.coeff ?? 1);
+    totalCoeff += (s.coeff ?? 1);
   });
-  return c > 0 ? pts / c : null;
+  return totalCoeff > 0 ? pts / totalCoeff : null;
 };
 
 const fmtDate = (iso) => {
@@ -76,6 +69,11 @@ const Profile = () => {
   const [loadingList,  setLoadingList]  = useState(false);
   const [data,         setData]         = useState(null);
   const [loading,      setLoading]      = useState(true);
+
+  // état modale exercices
+  const [exModal,   setExModal]   = useState(false);
+  const [exercises, setExercises] = useState([]);
+  const [loadingEx, setLoadingEx] = useState(false);
 
   // Chargement initial
   useEffect(() => {
@@ -109,10 +107,12 @@ const Profile = () => {
     setLoading(true);
     setData(null);
     try {
+      // Bug fix #3 : parent_phone et guardian_type n'existent pas dans students
+      // Ces données sont dans student_parents — on les retire du select
       const { data: studentRow } = await supabase
         .from('students')
         .select(`
-          matricule, date_of_birth, gender, city, parent_phone, guardian_type,
+          matricule, date_of_birth, gender, city,
           profiles ( full_name, avatar_url ),
           classes  ( name, level )
         `)
@@ -122,7 +122,7 @@ const Profile = () => {
       const { data: allGrades } = await supabase
         .from('grades')
         .select(`
-          note_devoir1, note_devoir2, note_composition,
+          note,
           class_subjects ( coefficient, subjects ( name ) ),
           sequences      ( id, label, number, is_active )
         `)
@@ -141,37 +141,35 @@ const Profile = () => {
         .order('created_at', { ascending: false })
         .limit(5);
 
-      // Grouper notes par séquence
-      const seqMap = {};
+      // Grouper par (seqNumber, subjectName) — 1 note par combinaison
+      const seqSubMap = {};
       (allGrades || []).forEach(g => {
-        const num = g.sequences?.number;
-        if (num == null) return;
-        if (!seqMap[num]) seqMap[num] = { label: g.sequences.label, grades: [] };
-        seqMap[num].grades.push(g);
+        const num     = g.sequences?.number;
+        const subName = g.class_subjects?.subjects?.name;
+        const coeff   = g.class_subjects?.coefficient ?? 1;
+        if (num == null || !subName) return;
+        if (!seqSubMap[num]) seqSubMap[num] = { label: g.sequences.label, isActive: g.sequences.is_active, subjects: {} };
+        seqSubMap[num].subjects[subName] = { coeff, note: g.note };
       });
-      const chartData = Object.entries(seqMap)
+
+      const chartData = Object.entries(seqSubMap)
         .sort(([a], [b]) => Number(a) - Number(b))
-        .map(([, s]) => ({ label: s.label, avg: weightedAvg(s.grades) }))
+        .map(([, s]) => ({ label: s.label, avg: weightedAvgFromSubjects(s.subjects) }))
         .filter(s => s.avg !== null);
 
-      const activeSeqNum = (allGrades || [])
-        .find(g => g.sequences?.is_active)?.sequences?.number
-        || Math.max(...Object.keys(seqMap).map(Number), 0);
+      const activeSeqNum = Object.entries(seqSubMap).find(([, s]) => s.isActive)?.[0]
+        || String(Math.max(...Object.keys(seqSubMap).map(Number), 0));
 
-      const activeSeqGrades = seqMap[activeSeqNum]?.grades || [];
-      const prevSeqGrades   = seqMap[activeSeqNum - 1]?.grades || [];
-      const activeSeqLabel  = seqMap[activeSeqNum]?.label || '—';
+      const activeSeqData  = seqSubMap[activeSeqNum];
+      const prevSeqData    = seqSubMap[String(Number(activeSeqNum) - 1)];
+      const activeSeqLabel = activeSeqData?.label || '—';
 
-      const gradesTable = activeSeqGrades.map(g => {
-        const subName   = g.class_subjects?.subjects?.name || '—';
-        const coeff     = g.class_subjects?.coefficient ?? 1;
-        const note      = rowNoteAvg(g);
-        const prevGrade = prevSeqGrades.find(p => p.class_subjects?.subjects?.name === subName);
-        const prevNote  = prevGrade ? rowNoteAvg(prevGrade) : null;
-        return { sub: subName, coeff, note, prev: prevNote, rang: '—' };
+      const gradesTable = Object.entries(activeSeqData?.subjects || {}).map(([subName, s]) => {
+        const prev = prevSeqData?.subjects?.[subName]?.note ?? null;
+        return { sub: subName, coeff: s.coeff, note: s.note, prev, rang: '—' };
       }).filter(g => g.note !== null);
 
-      const avg    = weightedAvg(activeSeqGrades);
+      const avg = weightedAvgFromSubjects(activeSeqData?.subjects || {});
       const total  = attendanceRows?.length || 0;
       const pN     = attendanceRows?.filter(a => a.status === 'present').length || 0;
       const eN     = attendanceRows?.filter(a => a.status === 'excused').length || 0;
@@ -186,8 +184,8 @@ const Profile = () => {
           dob:          fmtDate(studentRow?.date_of_birth),
           city:         studentRow?.city || '—',
           gender:       studentRow?.gender === 'F' ? 'Féminin' : studentRow?.gender === 'M' ? 'Masculin' : '—',
-          parentPhone:  studentRow?.parent_phone || '—',
-          guardianType: studentRow?.guardian_type || '—',
+          parentPhone:  '—',
+          guardianType: '—',
         },
         stats: { avg: avg !== null ? avg.toFixed(2) : '—', absences: aN, rank: '—' },
         sequence: activeSeqLabel,
@@ -210,6 +208,61 @@ const Profile = () => {
       setData(MOCK);
     } finally {
       setLoading(false);
+    }
+  };
+
+  /* ── Exercices assignés à un élève ─────────────────────── */
+  const loadExercises = async (studentId) => {
+    if (!studentId) return;
+    setExModal(true);
+    setLoadingEx(true);
+    try {
+      const { data: groups, error } = await supabase
+        .from('performance_groups')
+        .select('id, teacher_id, class_subject_id, classes(name), class_subjects(subjects(name)), sequences(label)')
+        .contains('student_ids', [studentId]);
+
+      if (error) throw error;
+
+      // noms des enseignants
+      const teacherIds = [...new Set((groups || []).map(g => g.teacher_id).filter(Boolean))];
+      let teacherMap = {};
+      if (teacherIds.length) {
+        const { data: tRows } = await supabase.from('profiles').select('id, full_name').in('id', teacherIds);
+        (tRows || []).forEach(t => { teacherMap[t.id] = t.full_name; });
+      }
+
+      if (!groups?.length) { setExercises([]); return; }
+
+      const groupIds = groups.map(g => g.id);
+      const { data: exRows } = await supabase
+        .from('group_exercises')
+        .select('id, title, description, due_date, created_at, performance_group_id')
+        .in('performance_group_id', groupIds)
+        .order('created_at', { ascending: false });
+
+      const groupMap = {};
+      groups.forEach(g => { groupMap[g.id] = g; });
+
+      setExercises((exRows || []).map(ex => {
+        const g = groupMap[ex.performance_group_id];
+        return {
+          id:          ex.id,
+          title:       ex.title,
+          description: ex.description,
+          dueDate:     ex.due_date,
+          createdAt:   ex.created_at,
+          subjectName: g?.class_subjects?.subjects?.name || '—',
+          className:   g?.classes?.name || '—',
+          seqLabel:    g?.sequences?.label || '—',
+          teacherName: teacherMap[g?.teacher_id] || '—',
+        };
+      }));
+    } catch (err) {
+      console.error('Erreur exercices:', err);
+      setExercises([]);
+    } finally {
+      setLoadingEx(false);
     }
   };
 
@@ -335,14 +388,30 @@ const Profile = () => {
                   </div>
                 ) : notifications.map(n => {
                   const { icon, bg } = notifIcon(n.type);
+                  const isExercise = n.title?.startsWith('📚');
+                  const studentId  = isAdmin ? selectedId : user?.id;
                   return (
-                    <div key={n.id} className="notif-item">
-                      <div className="notif-icon-wrap" style={{ background: bg }}>{icon}</div>
+                    <div
+                      key={n.id}
+                      className="notif-item"
+                      onClick={isExercise ? () => loadExercises(studentId) : undefined}
+                      style={isExercise ? { cursor: 'pointer', transition: 'background 0.15s' } : {}}
+                      onMouseEnter={isExercise ? e => e.currentTarget.style.background = 'rgba(34,197,94,0.06)' : undefined}
+                      onMouseLeave={isExercise ? e => e.currentTarget.style.background = 'transparent' : undefined}
+                    >
+                      <div className="notif-icon-wrap" style={{ background: isExercise ? 'rgba(34,197,94,0.12)' : bg }}>
+                        {isExercise ? <BookOpen size={18} color="var(--green)" /> : icon}
+                      </div>
                       <div style={{ flex: 1 }}>
                         <h5>{n.title}</h5>
                         <p>{n.body}</p>
                         <time>{n.time}</time>
                       </div>
+                      {isExercise && (
+                        <span style={{ fontSize: '11px', color: 'var(--green)', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                          Voir →
+                        </span>
+                      )}
                       {n.unread && <div className="unread-dot" />}
                     </div>
                   );
@@ -635,6 +704,108 @@ const Profile = () => {
         </div>
       ) : (
         renderProfile()
+      )}
+
+      {/* ── Styles impression PDF ── */}
+      <style>{`
+        @media print {
+          body > * { display: none !important; }
+          #print-exercise-sheet { display: block !important; }
+        }
+      `}</style>
+
+      {/* Zone invisible pour l'impression */}
+      <div id="print-exercise-sheet" style={{ display: 'none' }} />
+
+      {/* ── Modale Mes Exercices ── */}
+      {exModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div className="card" style={{ width: '100%', maxWidth: '580px', margin: 0, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+
+            <div className="card-header" style={{ justifyContent: 'space-between', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <BookOpen size={20} color="var(--green)" />
+                <div>
+                  <h3 style={{ margin: 0 }}>Mes Exercices</h3>
+                  <p style={{ margin: 0, fontSize: '12px' }}>Exercices assignés suite aux signalements</p>
+                </div>
+              </div>
+              <button onClick={() => setExModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-light)', padding: '4px' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ overflowY: 'auto', flex: 1, padding: '16px 20px' }}>
+              {loadingEx ? (
+                <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                  <Loader size={20} /> Chargement…
+                </div>
+              ) : exercises.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-light)', fontSize: '14px' }}>
+                  Aucun exercice assigné pour le moment.
+                </div>
+              ) : exercises.map(ex => (
+                <div key={ex.id} style={{ marginBottom: '16px', padding: '16px', background: 'var(--bg)', borderRadius: '12px', border: '1.5px solid var(--border)', borderLeft: '4px solid var(--green)' }}>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '8px' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-dark)', marginBottom: '4px' }}>
+                        {ex.title}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-light)' }}>
+                        {ex.subjectName} · {ex.teacherName} · {ex.className} · {ex.seqLabel}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const sheet = document.getElementById('print-exercise-sheet');
+                        if (sheet) {
+                          sheet.innerHTML = `
+                            <div style="font-family:sans-serif;padding:40px;max-width:680px;margin:auto">
+                              <h1 style="font-size:20px;margin-bottom:4px">📚 ${ex.title}</h1>
+                              <p style="color:#666;font-size:13px;margin-bottom:20px">
+                                ${ex.subjectName} · ${ex.teacherName} · ${ex.className} · ${ex.seqLabel}
+                              </p>
+                              <hr style="margin-bottom:20px"/>
+                              ${ex.description
+                                ? `<p style="font-size:14px;line-height:1.7;white-space:pre-wrap">${ex.description}</p>`
+                                : '<p style="color:#999">Aucune consigne fournie.</p>'}
+                              ${ex.dueDate
+                                ? `<p style="margin-top:20px;font-size:13px;color:#666">📅 À rendre avant le : <strong>${new Date(ex.dueDate).toLocaleDateString('fr-FR')}</strong></p>`
+                                : ''}
+                              <p style="margin-top:32px;font-size:12px;color:#aaa">Publié le ${new Date(ex.createdAt).toLocaleDateString('fr-FR')} — SIGPE · ENS Yaoundé</p>
+                            </div>`;
+                          sheet.style.display = 'block';
+                        }
+                        window.print();
+                        if (sheet) sheet.style.display = 'none';
+                      }}
+                      style={{ padding: '6px 14px', borderRadius: '8px', border: '1.5px solid var(--green)', background: 'transparent', color: 'var(--green)', fontWeight: 700, fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', flexShrink: 0 }}
+                    >
+                      <Download size={13} /> PDF
+                    </button>
+                  </div>
+
+                  {ex.description && (
+                    <div style={{ fontSize: '13px', color: 'var(--text-dark)', lineHeight: 1.6, marginBottom: '10px', padding: '10px 12px', background: 'rgba(0,0,0,0.03)', borderRadius: '8px', whiteSpace: 'pre-wrap' }}>
+                      {ex.description}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--text-light)', flexWrap: 'wrap' }}>
+                    <span>📅 Posté le {new Date(ex.createdAt).toLocaleDateString('fr-FR')}</span>
+                    {ex.dueDate && (
+                      <span style={{ color: '#f59e0b', fontWeight: 700 }}>
+                        ⏰ À rendre avant le {new Date(ex.dueDate).toLocaleDateString('fr-FR')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </section>
   );
