@@ -68,7 +68,7 @@ const Sidebar = () => {
       <div className="sidebar-logo">
         <div className="s-logo-icon"><GraduationCap size={24} color="white" /></div>
         <div>
-          <h1>SIGPE</h1>
+          <h1>SIGPES</h1>
           <span>ENS Yaoundé · 2024–25</span>
         </div>
       </div>

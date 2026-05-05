@@ -393,16 +393,16 @@ const OnboardingParent = () => {
 
         {/* Boutons */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '28px', gap: '12px' }}>
-          {step > 1 ? (
-            <button onClick={() => setStep(s => s - 1)} style={{
+          <button
+            onClick={() => step > 1 ? setStep(s => s - 1) : navigate('/login')}
+            style={{
               display: 'flex', alignItems: 'center', gap: '6px',
               padding: '11px 20px', borderRadius: '10px', border: '1.5px solid rgba(255,255,255,0.15)',
               background: 'transparent', color: 'var(--text-light, #94a3b8)',
               cursor: 'pointer', fontWeight: 600, fontSize: '14px'
             }}>
-              <ChevronLeft size={16} /> Retour
-            </button>
-          ) : <div />}
+            <ChevronLeft size={16} /> Retour
+          </button>
 
           {step < STEPS.length ? (
             <button onClick={handleNext} style={{

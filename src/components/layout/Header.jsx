@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Menu, Search, Moon, Bell, Mail, GraduationCap, Users, Loader, X } from 'lucide-react';
+import { Menu, Search, Bell, Mail, GraduationCap, Users, Loader, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
@@ -29,8 +29,6 @@ const Header = () => {
   const [showDrop,    setShowDrop]    = useState(false);
   const searchRef  = useRef(null);
   const debounceRef = useRef(null);
-
-  const toggleDarkMode = () => document.body.classList.toggle('dark-mode');
 
   // Charger le compteur initial de notifs non lues
   useEffect(() => {
@@ -344,10 +342,6 @@ const Header = () => {
           </div>
         )}
       </div>
-
-      <button className="dark-toggle" onClick={toggleDarkMode} title="Mode sombre">
-        <Moon size={18} />
-      </button>
 
       {/* Cloche avec animation et badge */}
       <div

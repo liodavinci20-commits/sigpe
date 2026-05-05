@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/layout/ProtectedRoute';
+import ThemeToggle from './components/ui/ThemeToggle';
 import { AuthProvider } from './context/AuthContext';
 
 import Login from './pages/Login';
@@ -25,6 +26,7 @@ const App = () => {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <ThemeToggle />
         <Routes>
           <Route path="/login" element={<Login />} />
 

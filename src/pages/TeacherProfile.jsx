@@ -17,6 +17,9 @@ const TeacherProfile = () => {
   const [avatarFile,    setAvatarFile]    = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [saving,        setSaving]        = useState(false);
+  const [institutions,  setInstitutions]  = useState([]);
+  const [instId,        setInstId]        = useState('');
+  const [savingInst,    setSavingInst]    = useState(false);
 
   const showNotif = (type, text) => {
     setNotification({ type, text });
@@ -31,12 +34,17 @@ const TeacherProfile = () => {
   const loadData = async () => {
     setLoading(true);
     try {
+      // Établissements disponibles
+      const { data: instRows } = await supabase.from('institutions').select('id, name').order('name');
+      setInstitutions(instRows || []);
+
       // 1. Profil de base
       const { data: profileRow } = await supabase
         .from('profiles')
-        .select('full_name, avatar_url, role')
+        .select('full_name, avatar_url, role, institution_id')
         .eq('id', user.id)
         .single();
+      setInstId(profileRow?.institution_id || '');
       setProfile(profileRow);
 
       // 2. Classe du titulaire (teacher_head)
@@ -61,6 +69,13 @@ const TeacherProfile = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const saveInstitution = async (newInstId) => {
+    setSavingInst(true);
+    await supabase.from('profiles').update({ institution_id: newInstId || null }).eq('id', user.id);
+    setSavingInst(false);
+    showNotif('success', 'Établissement mis à jour !');
   };
 
   const handleAvatarChange = (e) => {
@@ -228,6 +243,30 @@ const TeacherProfile = () => {
                 <span className="info-val" style={{ fontWeight: 700, color: 'var(--green)' }}>
                   {classSubjects.length} classe{classSubjects.length !== 1 ? 's' : ''}
                 </span>
+              </div>
+              <div className="info-row" style={{ alignItems: 'center' }}>
+                <span className="info-key">Établissement</span>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flex: 1 }}>
+                  <select
+                    value={instId}
+                    disabled={user?.isDemo}
+                    onChange={e => {
+                      setInstId(e.target.value);
+                      saveInstitution(e.target.value);
+                    }}
+                    style={{
+                      flex: 1, padding: '6px 10px', borderRadius: '8px',
+                      border: '1.5px solid var(--border)', background: 'var(--bg)',
+                      color: 'var(--text-dark)', fontSize: '13px', cursor: 'pointer'
+                    }}
+                  >
+                    <option value="">-- Non défini --</option>
+                    {institutions.map(inst => (
+                      <option key={inst.id} value={inst.id}>{inst.name}</option>
+                    ))}
+                  </select>
+                  {savingInst && <Loader size={14} style={{ flexShrink: 0, color: 'var(--green)' }} />}
+                </div>
               </div>
             </div>
           </div>

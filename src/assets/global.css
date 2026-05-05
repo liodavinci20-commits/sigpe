@@ -841,6 +841,86 @@
 
   .divider { height:1px; background:var(--border); margin:16px 0; }
 
+  /* ══════════════════════════════════════
+     DARK MODE
+  ══════════════════════════════════════ */
+  body.dark-mode {
+    --bg:        #0f172a;
+    --bg-card:   #1e293b;
+    --text-dark: #e2e8f0;
+    --text-mid:  #94a3b8;
+    --text-light:#64748b;
+    --border:    #334155;
+    --shadow:    0 2px 16px rgba(0,0,0,0.5);
+    --shadow-lg: 0 8px 40px rgba(0,0,0,0.7);
+    --green-pale:rgba(0,168,107,0.13);
+    --amber-pale:rgba(244,168,32,0.13);
+    --red-pale:  rgba(229,62,62,0.13);
+  }
+  body.dark-mode { background:var(--bg); color:var(--text-dark); }
+
+  /* Header */
+  body.dark-mode .header {
+    background:rgba(15,23,42,0.97);
+    border-bottom-color:#334155;
+  }
+  body.dark-mode .header-search {
+    background:#1e293b; border-color:#334155;
+  }
+  body.dark-mode .header-search input { color:#e2e8f0; background:transparent; }
+  body.dark-mode .header-notif { background:#1e293b; border-color:#334155; }
+
+  /* Buttons / inputs */
+  body.dark-mode .btn-outline { background:#1e293b; border-color:#334155; color:#94a3b8; }
+  body.dark-mode .btn-outline:hover { border-color:var(--green); color:var(--green); }
+  body.dark-mode .filter-select { background:#1e293b; border-color:#334155; color:#94a3b8; }
+  body.dark-mode .search-bar { background:#1e293b; border-color:#334155; }
+  body.dark-mode .search-bar input { color:#e2e8f0; background:transparent; }
+  body.dark-mode .icon-btn { background:#1e293b; border-color:#334155; }
+  body.dark-mode .note-input { background:#1e293b; border-color:#334155; color:#e2e8f0; }
+
+  /* Cards & stats */
+  body.dark-mode .stat-icon.blue { background:rgba(59,130,246,0.15); }
+  body.dark-mode .stat-icon.green { background:rgba(0,168,107,0.15); }
+  body.dark-mode .stat-icon.amber { background:rgba(244,168,32,0.15); }
+  body.dark-mode .stat-icon.red { background:rgba(229,62,62,0.15); }
+
+  /* Tables */
+  body.dark-mode .students-table tr:hover td { background:rgba(0,168,107,0.06); }
+  body.dark-mode .notes-entry-table tr:hover td { background:rgba(255,255,255,0.03); }
+  body.dark-mode .bulletin-table tr:nth-child(even) td { background:rgba(255,255,255,0.03); }
+  body.dark-mode .bulletin-preview { background:#1e293b; }
+
+  /* Grades class pills */
+  body.dark-mode .class-pill { background:#1e293b; border-color:#334155; }
+  body.dark-mode .class-pill.active { background:rgba(0,168,107,0.15); }
+
+  /* Form elements (generic) */
+  body.dark-mode input:not([type="range"]),
+  body.dark-mode select,
+  body.dark-mode textarea {
+    background:#1e293b !important;
+    border-color:#334155 !important;
+    color:#e2e8f0 !important;
+  }
+  body.dark-mode input::placeholder,
+  body.dark-mode textarea::placeholder { color:#64748b !important; }
+
+  /* Tabs */
+  body.dark-mode .tab-item:hover { background:rgba(255,255,255,0.04); }
+
+  /* Theme toggle button */
+  .theme-fab {
+    position:fixed; bottom:24px; right:24px; z-index:9999;
+    width:46px; height:46px; border-radius:50%; border:none;
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 20px rgba(0,0,0,0.35);
+    transition:transform 0.2s, box-shadow 0.2s;
+    background:#1A3A6B; color:#fff;
+  }
+  .theme-fab:hover { transform:scale(1.08); box-shadow:0 8px 28px rgba(0,0,0,0.45); }
+  body.dark-mode .theme-fab { background:#334155; color:#fbbf24; }
+
   /* Tabs */
   .tab-row { display:flex; gap:4px; border-bottom:2px solid var(--border); margin-bottom:20px; }
   .tab-item {

@@ -23,6 +23,10 @@ const OnboardingTeacherHead = () => {
   const [avatarFile,    setAvatarFile]    = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
 
+  // Établissement
+  const [institutions,  setInstitutions]  = useState([]);
+  const [institutionId, setInstitutionId] = useState('');
+
   // Étape 2
   const [classes,        setClasses]        = useState([]);
   const [loadingClasses, setLoadingClasses] = useState(false);
@@ -32,6 +36,11 @@ const OnboardingTeacherHead = () => {
     setNotification({ type, text });
     setTimeout(() => setNotification(null), 4500);
   };
+
+  useEffect(() => {
+    supabase.from('institutions').select('id, name').order('name')
+      .then(({ data }) => setInstitutions(data || []));
+  }, []);
 
   useEffect(() => {
     if (step === 2) loadClasses();
@@ -57,6 +66,7 @@ const OnboardingTeacherHead = () => {
 
   const handleNext = () => {
     if (!fullName.trim()) { showNotif('error', 'Veuillez saisir votre nom complet.'); return; }
+    if (!institutionId)   { showNotif('error', 'Veuillez sélectionner votre établissement.'); return; }
     setStep(2);
   };
 
@@ -87,6 +97,7 @@ const OnboardingTeacherHead = () => {
         full_name:            fullName.trim(),
         onboarding_completed: true,
         updated_at:           new Date().toISOString(),
+        institution_id:       institutionId || null,
       };
       if (avatarUrl) profileUpdate.avatar_url = avatarUrl;
 
@@ -214,6 +225,15 @@ const OnboardingTeacherHead = () => {
                 onChange={e => setPhone(e.target.value)} style={inputStyle} />
             </Field>
 
+            <Field label="Établissement *">
+              <select value={institutionId} onChange={e => setInstitutionId(e.target.value)} style={inputStyle}>
+                <option value="">-- Choisir votre établissement --</option>
+                {institutions.map(inst => (
+                  <option key={inst.id} value={inst.id}>{inst.name}</option>
+                ))}
+              </select>
+            </Field>
+
             <div style={{
               marginTop: '8px', padding: '12px 16px', borderRadius: '10px',
               background: 'rgba(102,126,234,0.07)', border: '1px solid #667EEA',
@@ -291,16 +311,16 @@ const OnboardingTeacherHead = () => {
 
         {/* Boutons navigation */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '28px', gap: '12px' }}>
-          {step > 1 ? (
-            <button onClick={() => setStep(s => s - 1)} style={{
+          <button
+            onClick={() => step > 1 ? setStep(s => s - 1) : navigate('/login')}
+            style={{
               display: 'flex', alignItems: 'center', gap: '6px',
               padding: '11px 20px', borderRadius: '10px', border: '1.5px solid rgba(255,255,255,0.15)',
               background: 'transparent', color: 'var(--text-light, #94a3b8)',
               cursor: 'pointer', fontWeight: 600, fontSize: '14px'
             }}>
-              <ChevronLeft size={16} /> Retour
-            </button>
-          ) : <div />}
+            <ChevronLeft size={16} /> Retour
+          </button>
 
           {step < STEPS.length ? (
             <button onClick={handleNext} style={{

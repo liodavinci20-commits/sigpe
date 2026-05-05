@@ -76,7 +76,7 @@ const Login = () => {
     if (error) {
       showNotification('error', "Échec : " + error.message);
     } else {
-      showNotification('success', "Profil SIGPE généré ! Vous pouvez maintenant vous connecter.");
+      showNotification('success', "Profil SIGPES généré ! Vous pouvez maintenant vous connecter.");
       setAuthMode('login'); // On bascule vers la page de login
     }
   };
@@ -104,7 +104,7 @@ const Login = () => {
           <div className="login-hero-logo">
             <div className="logo-icon"><School size={32} /></div>
             <div className="logo-text">
-              <h2>SIGPE</h2>
+              <h2>SIGPES</h2>
               <span>Cameroun — ENS Yaoundé</span>
             </div>
           </div>
@@ -191,7 +191,7 @@ const Login = () => {
               </form>
               
               <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
-                <span style={{ fontSize: '14px', color: 'var(--text-dark)' }}>Nouveau sur SIGPE ? <strong style={{ color: 'var(--blue-accent)', cursor: 'pointer' }} onClick={() => setAuthMode('register')}>Créer un compte</strong></span>
+                <span style={{ fontSize: '14px', color: 'var(--text-dark)' }}>Nouveau sur SIGPES ? <strong style={{ color: 'var(--blue-accent)', cursor: 'pointer' }} onClick={() => setAuthMode('register')}>Créer un compte</strong></span>
                 <span style={{ fontSize: '13px', color: 'var(--text-light)', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setAuthMode('demo')}>Retour au Mode Démo</span>
               </div>
             </div>
@@ -241,7 +241,7 @@ const Login = () => {
             </div>
           )}
 
-          <div className="login-footer" style={{ marginTop: '20px' }}>© 2025 SIGPE — ENS Yaoundé &nbsp;|&nbsp; Support: support@sigpe.cm</div>
+          <div className="login-footer" style={{ marginTop: '20px' }}>© 2025 SIGPES — ENS Yaoundé &nbsp;|&nbsp; Support: support@sigpe.cm</div>
         </div>
       </div>
     </div>

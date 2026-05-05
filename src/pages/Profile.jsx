@@ -61,14 +61,20 @@ const initials = (name) => {
 // ── COMPOSANT ─────────────────────────────────────────────────
 const Profile = () => {
   const { user } = useAuth();
-  const isAdmin = (user?.role === 'admin' || user?.role === 'sub_admin' || user?.role === 'counselor') && !user?.isDemo;
+  const isAdmin   = (user?.role === 'admin' || user?.role === 'sub_admin' || user?.role === 'counselor') && !user?.isDemo;
+  const isTeacher = ['teacher_course', 'teacher_head'].includes(user?.role) && !user?.isDemo;
 
-  const [allStudents,  setAllStudents]  = useState([]);
-  const [search,       setSearch]       = useState('');
-  const [selectedId,   setSelectedId]   = useState(null);
-  const [loadingList,  setLoadingList]  = useState(false);
-  const [data,         setData]         = useState(null);
-  const [loading,      setLoading]      = useState(true);
+  const [allStudents,    setAllStudents]    = useState([]);
+  const [teacherProfile, setTeacherProfile] = useState(null);
+  const [teacherClasses, setTeacherClasses] = useState([]);
+  const [search,         setSearch]         = useState('');
+  const [selectedId,     setSelectedId]     = useState(null);
+  const [loadingList,    setLoadingList]    = useState(false);
+  const [data,           setData]           = useState(null);
+  const [loading,        setLoading]        = useState(true);
+  const [institutions,   setInstitutions]   = useState([]);
+  const [savingInst,     setSavingInst]     = useState(false);
+  const [selectedInstId, setSelectedInstId] = useState('');
 
   // état modale exercices
   const [exModal,   setExModal]   = useState(false);
@@ -78,9 +84,12 @@ const Profile = () => {
   // Chargement initial
   useEffect(() => {
     if (!user) return;
+    supabase.from('institutions').select('id, name').order('name')
+      .then(({ data: inst }) => setInstitutions(inst || []));
     if (user.isDemo)  { setData(MOCK); setLoading(false); return; }
-    if (isAdmin)      { loadStudentList(); }
-    else              { loadProfile(user.id); }
+    if (isAdmin)        { loadStudentList(); }
+    else if (isTeacher) { loadTeacherProfile(); }
+    else                { loadProfile(user.id); }
   }, [user]);
 
   // Recharge le profil quand l'admin sélectionne un élève
@@ -113,7 +122,7 @@ const Profile = () => {
         .from('students')
         .select(`
           matricule, date_of_birth, gender, city,
-          profiles ( full_name, avatar_url ),
+          profiles ( full_name, avatar_url, institution_id ),
           classes  ( name, level )
         `)
         .eq('id', studentId)
@@ -177,15 +186,16 @@ const Profile = () => {
 
       setData({
         profile: {
-          name:         studentRow?.profiles?.full_name || '—',
-          avatar:       studentRow?.profiles?.avatar_url || null,
-          className:    studentRow?.classes ? `${studentRow.classes.name} · ${studentRow.classes.level}` : 'Classe non assignée',
-          matricule:    studentRow?.matricule || '—',
-          dob:          fmtDate(studentRow?.date_of_birth),
-          city:         studentRow?.city || '—',
-          gender:       studentRow?.gender === 'F' ? 'Féminin' : studentRow?.gender === 'M' ? 'Masculin' : '—',
-          parentPhone:  '—',
-          guardianType: '—',
+          name:          studentRow?.profiles?.full_name || '—',
+          avatar:        studentRow?.profiles?.avatar_url || null,
+          className:     studentRow?.classes ? `${studentRow.classes.name} · ${studentRow.classes.level}` : 'Classe non assignée',
+          matricule:     studentRow?.matricule || '—',
+          dob:           fmtDate(studentRow?.date_of_birth),
+          city:          studentRow?.city || '—',
+          gender:        studentRow?.gender === 'F' ? 'Féminin' : studentRow?.gender === 'M' ? 'Masculin' : '—',
+          parentPhone:   '—',
+          guardianType:  '—',
+          institutionId: studentRow?.profiles?.institution_id || null,
         },
         stats: { avg: avg !== null ? avg.toFixed(2) : '—', absences: aN, rank: '—' },
         sequence: activeSeqLabel,
@@ -206,6 +216,45 @@ const Profile = () => {
     } catch (err) {
       console.error('Erreur profil:', err);
       setData(MOCK);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ── Sauvegarder l'établissement ────────────────────────── */
+  const saveInstitution = async (instId, profileId) => {
+    setSavingInst(true);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ institution_id: instId || null })
+      .eq('id', profileId);
+    setSavingInst(false);
+    if (!error && data) setData(prev => ({ ...prev, profile: { ...prev.profile, institutionId: instId } }));
+  };
+
+  /* ── Profil enseignant ────────────────────────────────────── */
+  const loadTeacherProfile = async () => {
+    setLoading(true);
+    try {
+      const [{ data: profileRow }, { data: csRows }] = await Promise.all([
+        supabase.from('profiles')
+          .select('id, full_name, avatar_url, institution_id, institutions(name)')
+          .eq('id', user.id)
+          .single(),
+        supabase.from('class_subjects')
+          .select('classes(name, level), subjects(name)')
+          .eq('teacher_id', user.id),
+      ]);
+      setSelectedInstId(profileRow?.institution_id || '');
+      setTeacherProfile({
+        name:            profileRow?.full_name || '—',
+        avatar:          profileRow?.avatar_url || null,
+        institutionId:   profileRow?.institution_id || null,
+        institutionName: profileRow?.institutions?.name || null,
+      });
+      setTeacherClasses(csRows || []);
+    } catch (err) {
+      console.error('Erreur profil enseignant:', err);
     } finally {
       setLoading(false);
     }
@@ -359,6 +408,26 @@ const Profile = () => {
                   {profile.city !== '—' && (
                     <div className="info-row"><span className="info-key">Ville</span>           <span className="info-val">{profile.city}</span></div>
                   )}
+                  <div className="info-row" style={{ alignItems: 'center' }}>
+                    <span className="info-key">Établissement</span>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flex: 1 }}>
+                      <select
+                        value={selectedInstId || profile.institutionId || ''}
+                        onChange={e => {
+                          setSelectedInstId(e.target.value);
+                          const profileId = isAdmin ? selectedId : user?.id;
+                          saveInstitution(e.target.value, profileId);
+                        }}
+                        style={{ flex: 1, padding: '5px 10px', borderRadius: '8px', border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text-dark)', fontSize: '13px' }}
+                      >
+                        <option value="">-- Non défini --</option>
+                        {institutions.map(inst => (
+                          <option key={inst.id} value={inst.id}>{inst.name}</option>
+                        ))}
+                      </select>
+                      {savingInst && <Loader size={14} style={{ flexShrink: 0 }} />}
+                    </div>
+                  </div>
                 </div>
                 <div className="divider" />
                 <div className="info-block">
@@ -572,6 +641,141 @@ const Profile = () => {
     );
   };
 
+  /* ── Rendu profil enseignant ─────────────────────────────── */
+  const renderTeacherProfile = () => {
+    if (!teacherProfile) return null;
+    const roleLabel = user?.role === 'teacher_head' ? 'Professeur Titulaire' : 'Professeur de Cours';
+    return (
+      <>
+        {/* En-tête */}
+        <div className="profile-header">
+          <div className="profile-ava-wrap">
+            {teacherProfile.avatar ? (
+              <img className="profile-ava" src={teacherProfile.avatar} alt="Enseignant"
+                onError={e => { e.target.style.display = 'none'; }} />
+            ) : (
+              <div className="profile-ava" style={{
+                background: 'linear-gradient(135deg,var(--blue-accent),#0891b2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#fff', fontWeight: 900, fontSize: '28px'
+              }}>
+                {initials(teacherProfile.name)}
+              </div>
+            )}
+            <div className="profile-status-dot" />
+          </div>
+          <div className="profile-main-info">
+            <h2>{teacherProfile.name}</h2>
+            <div className="profile-meta">
+              <div className="profile-meta-item" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <School size={14} /> {teacherProfile.institutionName || 'Établissement non défini'}
+              </div>
+            </div>
+            <div className="profile-badges">
+              <span className="profile-badge pbadge-blue" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <BadgeCheck size={14} /> {roleLabel}
+              </span>
+              <span className="profile-badge pbadge-green" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <BadgeCheck size={14} /> Actif
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+
+          {/* Informations personnelles + établissement */}
+          <div className="card">
+            <div className="card-body">
+              <div className="info-block">
+                <h4 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><User size={16} /> Informations Personnelles</h4>
+                <div className="info-row">
+                  <span className="info-key">Nom complet</span>
+                  <span className="info-val">{teacherProfile.name}</span>
+                </div>
+                <div className="info-row">
+                  <span className="info-key">Rôle</span>
+                  <span className="info-val">{roleLabel}</span>
+                </div>
+                <div className="info-row" style={{ alignItems: 'center' }}>
+                  <span className="info-key">Établissement</span>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flex: 1 }}>
+                    <select
+                      value={selectedInstId}
+                      onChange={e => {
+                        const instId = e.target.value;
+                        setSelectedInstId(instId);
+                        saveInstitution(instId, user.id);
+                        const inst = institutions.find(i => i.id === instId);
+                        setTeacherProfile(prev => ({ ...prev, institutionId: instId, institutionName: inst?.name || null }));
+                      }}
+                      style={{
+                        flex: 1, padding: '6px 10px', borderRadius: '8px',
+                        border: '1.5px solid var(--border)', background: 'var(--bg)',
+                        color: 'var(--text-dark)', fontSize: '13px'
+                      }}
+                    >
+                      <option value="">-- Non défini --</option>
+                      {institutions.map(inst => (
+                        <option key={inst.id} value={inst.id}>{inst.name}</option>
+                      ))}
+                    </select>
+                    {savingInst && <Loader size={14} style={{ flexShrink: 0 }} />}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Classes enseignées */}
+          <div className="card">
+            <div className="card-header">
+              <div>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <BookOpen size={18} /> Classes Enseignées
+                </h3>
+                <p>{teacherClasses.length} classe(s) assignée(s)</p>
+              </div>
+            </div>
+            <div className="card-body">
+              {teacherClasses.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '28px', color: 'var(--text-light)', fontSize: '13px' }}>
+                  <BookOpen size={28} style={{ marginBottom: '10px', opacity: 0.3 }} /><br />
+                  Aucune classe assignée pour le moment.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {teacherClasses.map((cs, i) => (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '10px 14px', borderRadius: '8px',
+                      background: 'var(--bg)', border: '1px solid var(--border)'
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-dark)' }}>
+                          {cs.classes?.name || '—'}
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '2px' }}>
+                          {cs.classes?.level || ''}
+                        </div>
+                      </div>
+                      <span style={{
+                        fontSize: '12px', fontWeight: 600, color: 'var(--green)',
+                        background: 'rgba(34,197,94,0.1)', padding: '3px 10px', borderRadius: '6px'
+                      }}>
+                        {cs.subjects?.name || '—'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  };
+
   /* ── Rendu principal ────────────────────────────────────────── */
   return (
     <section id="page-profile" className="page-section active">
@@ -693,17 +897,28 @@ const Profile = () => {
         </div>
       )}
 
-      {/* ── Contenu profil ── */}
-      {loading ? (
-        <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-          <Loader size={20} /> Chargement du profil…
-        </div>
-      ) : !data ? (
-        <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-light)', fontSize: '14px' }}>
-          Sélectionnez un élève pour afficher son profil.
-        </div>
-      ) : (
-        renderProfile()
+      {/* ── Contenu profil enseignant ── */}
+      {isTeacher && (
+        loading ? (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+            <Loader size={20} /> Chargement du profil…
+          </div>
+        ) : renderTeacherProfile()
+      )}
+
+      {/* ── Contenu profil élève / admin ── */}
+      {!isTeacher && (
+        loading ? (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+            <Loader size={20} /> Chargement du profil…
+          </div>
+        ) : !data ? (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-light)', fontSize: '14px' }}>
+            Sélectionnez un élève pour afficher son profil.
+          </div>
+        ) : (
+          renderProfile()
+        )
       )}
 
       {/* ── Styles impression PDF ── */}
