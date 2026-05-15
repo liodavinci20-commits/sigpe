@@ -481,7 +481,7 @@ const Reports = () => {
                 <div className="kpi-card">
                   <h4>Total Élèves Inscrits</h4>
                   <div className="kpi-val">{totalStudents ?? '—'}</div>
-                  <div className="kpi-sub" style={{ color: 'var(--green)' }}>Année 2024–2025</div>
+                  <div className="kpi-sub" style={{ color: 'var(--green)' }}>Année en cours</div>
                 </div>
                 <div className="kpi-card">
                   <h4>Moyenne Générale Établ.</h4>
@@ -584,7 +584,7 @@ const Reports = () => {
               <div className="card-header">
                 <div>
                   <h3>{isTeacherHead ? 'Répartition des Élèves par Tranche' : 'Répartition par Niveau'}</h3>
-                  <p>{isTeacherHead ? `Moyennes générales · ${myClass?.name}` : 'Effectifs inscrits 2024–25'}</p>
+                  <p>{isTeacherHead ? `Moyennes générales · ${myClass?.name}` : 'Effectifs inscrits'}</p>
                 </div>
               </div>
               <div className="card-body">

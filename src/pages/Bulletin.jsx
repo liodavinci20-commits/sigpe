@@ -91,7 +91,7 @@ const BulletinCard = ({ bulletin, rank, total, className, trimesterLabel, sequen
         </div>
         <div style={{ textAlign: 'right', fontSize: '12px' }}>
           <div style={{ fontWeight: 700, fontSize: '14px' }}>{trimesterLabel}</div>
-          <div>Année scolaire 2024–2025</div>
+          <div>Année scolaire en cours</div>
           <div>Classe : <strong>{className}</strong></div>
         </div>
       </div>

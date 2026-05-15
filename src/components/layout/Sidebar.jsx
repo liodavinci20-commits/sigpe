@@ -69,7 +69,7 @@ const Sidebar = () => {
         <div className="s-logo-icon"><GraduationCap size={24} color="white" /></div>
         <div>
           <h1>SIGPES</h1>
-          <span>Année scolaire 2024–25</span>
+          <span>Gestion Pédagogique</span>
         </div>
       </div>
 

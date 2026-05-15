@@ -291,7 +291,7 @@ const Header = () => {
 
       <div className="header-breadcrumb">
         <h2>Tableau de Bord</h2>
-        <p>Vue d'ensemble · Année 2024–2025</p>
+        <p>Vue d'ensemble</p>
       </div>
 
       {/* Barre de recherche avec dropdown Supabase */}

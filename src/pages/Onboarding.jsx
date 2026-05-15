@@ -300,7 +300,7 @@ const Onboarding = () => {
         {step === 2 && (
           <div style={{ animation: 'fadeIn 0.3s' }}>
             <p style={{ color: 'var(--text-light, #94a3b8)', fontSize: '13px', marginBottom: '18px', lineHeight: 1.6 }}>
-              Choisissez la <strong style={{ color: 'var(--text-dark, #f1f5f9)' }}>classe</strong> dans laquelle vous êtes inscrit(e) pour l'année 2024–2025.
+              Choisissez la <strong style={{ color: 'var(--text-dark, #f1f5f9)' }}>classe</strong> dans laquelle vous êtes inscrit(e).
             </p>
 
             {loadingClasses ? (

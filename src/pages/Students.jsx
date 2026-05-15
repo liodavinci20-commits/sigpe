@@ -441,7 +441,7 @@ const Students = () => {
             <div className="card-header">
               <div>
                 <h3>Liste des Élèves Inscrits</h3>
-                <p>Année 2024–2025</p>
+                <p>Liste des élèves inscrits</p>
               </div>
               {isAdmin && (
                 <div style={{ fontSize: '12px', color: 'var(--text-light)', display: 'flex', alignItems: 'center', gap: '6px' }}>
