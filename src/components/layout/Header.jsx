@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Menu, Search, Bell, Mail, GraduationCap, Users, Loader, X } from 'lucide-react';
+import { Menu, Search, Bell, Mail, GraduationCap, Users, Loader, X, CheckCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
@@ -18,8 +18,12 @@ const Header = () => {
   const navigate  = useNavigate();
 
   // ── Notifications ──────────────────────────────────────────
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [ringing,     setRinging]     = useState(false);
+  const [unreadCount,    setUnreadCount]    = useState(0);
+  const [ringing,        setRinging]        = useState(false);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [notifs,         setNotifs]         = useState([]);
+  const [loadingNotifs,  setLoadingNotifs]  = useState(false);
+  const bellRef    = useRef(null);
   const channelRef = useRef(null);
 
   // ── Recherche ──────────────────────────────────────────────
@@ -85,8 +89,60 @@ const Header = () => {
     channelRef.current = channel;
   };
 
+  // Fermer le panneau si clic en dehors
+  useEffect(() => {
+    const handler = (e) => {
+      if (bellRef.current && !bellRef.current.contains(e.target)) {
+        setShowNotifPanel(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const fetchNotifications = async () => {
+    setLoadingNotifs(true);
+    try {
+      const groups = targetGroupsForRole(user.role);
+      let q = supabase
+        .from('notifications')
+        .select('id, title, content, type, created_at, is_read, target_group')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (groups) q = q.in('target_group', groups);
+      const { data } = await q;
+      setNotifs(data || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingNotifs(false);
+    }
+  };
+
   const handleBellClick = async () => {
-    setUnreadCount(0);
+    const next = !showNotifPanel;
+    setShowNotifPanel(next);
+    if (next) {
+      setUnreadCount(0);
+      fetchNotifications();
+    }
+  };
+
+  const fmtDate = (iso) => {
+    if (!iso) return '';
+    const d   = new Date(iso);
+    const now  = new Date();
+    const diff = Math.floor((now - d) / 1000);
+    if (diff < 60)   return 'À l\'instant';
+    if (diff < 3600) return `Il y a ${Math.floor(diff / 60)} min`;
+    if (diff < 86400) return `Il y a ${Math.floor(diff / 3600)} h`;
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  };
+
+  const typeColor = {
+    info:    { bg: '#dcfce7', color: '#16a34a', label: 'Info' },
+    warning: { bg: '#fef9c3', color: '#ca8a04', label: 'Alerte' },
+    urgent:  { bg: '#fee2e2', color: '#ef4444', label: 'Urgent' },
   };
 
   // ── Recherche avec debounce 300ms ─────────────────────────
@@ -343,22 +399,112 @@ const Header = () => {
         )}
       </div>
 
-      {/* Cloche avec animation et badge */}
-      <div
-        className="header-notif"
-        title={unreadCount > 0 ? `${unreadCount} notification(s) non lue(s)` : 'Notifications'}
-        onClick={handleBellClick}
-        style={{ position: 'relative', cursor: 'pointer' }}
-      >
-        <Bell
-          size={18}
-          className={ringing ? 'bell-ringing' : ''}
-          style={{ transition: 'color 0.3s', color: unreadCount > 0 ? 'var(--green)' : undefined }}
-        />
-        {unreadCount > 0 && (
-          <span className="bell-badge">
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
+      {/* Cloche avec animation, badge et panneau */}
+      <div ref={bellRef} style={{ position: 'relative' }}>
+        <div
+          className="header-notif"
+          title={unreadCount > 0 ? `${unreadCount} notification(s) non lue(s)` : 'Notifications'}
+          onClick={handleBellClick}
+          style={{ position: 'relative', cursor: 'pointer', background: showNotifPanel ? 'var(--green-pale)' : undefined, borderColor: showNotifPanel ? 'var(--green)' : undefined }}
+        >
+          <Bell
+            size={18}
+            className={ringing ? 'bell-ringing' : ''}
+            style={{ transition: 'color 0.3s', color: showNotifPanel || unreadCount > 0 ? 'var(--green)' : undefined }}
+          />
+          {unreadCount > 0 && (
+            <span className="bell-badge">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+        </div>
+
+        {/* ── Panneau notifications ── */}
+        {showNotifPanel && (
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 12px)', right: 0,
+            width: '360px', maxHeight: '480px',
+            background: 'var(--bg-card)',
+            border: '1.5px solid var(--border)',
+            borderRadius: '16px',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+            zIndex: 9999, display: 'flex', flexDirection: 'column',
+            overflow: 'hidden', animation: 'fade-up 0.2s ease',
+          }}>
+            {/* En-tête */}
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Bell size={15} color="var(--green)" />
+                <span style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-dark)' }}>Notifications</span>
+              </div>
+              <button onClick={() => setShowNotifPanel(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-light)', display: 'flex', padding: '2px' }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Liste */}
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {loadingNotifs ? (
+                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '13px' }}>
+                  <Loader size={16} /> Chargement…
+                </div>
+              ) : notifs.length === 0 ? (
+                <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-light)' }}>
+                  <Bell size={32} style={{ opacity: 0.2, marginBottom: '10px' }} />
+                  <p style={{ fontSize: '13px', margin: 0 }}>Aucune notification pour le moment.</p>
+                </div>
+              ) : (
+                notifs.map((n, i) => {
+                  const t = typeColor[n.type] || typeColor.info;
+                  return (
+                    <div key={n.id} style={{
+                      padding: '12px 16px',
+                      borderBottom: i < notifs.length - 1 ? '1px solid var(--bg)' : 'none',
+                      display: 'flex', gap: '10px', alignItems: 'flex-start',
+                      transition: 'background 0.15s',
+                      cursor: 'default',
+                    }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      {/* Badge type */}
+                      <span style={{
+                        flexShrink: 0, marginTop: '2px',
+                        fontSize: '10px', fontWeight: 800,
+                        padding: '2px 7px', borderRadius: '4px',
+                        background: t.bg, color: t.color,
+                      }}>
+                        {t.label}
+                      </span>
+
+                      {/* Contenu */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-dark)', marginBottom: '3px', lineHeight: 1.3 }}>
+                          {n.title}
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-light)', lineHeight: 1.5, marginBottom: '5px' }}>
+                          {n.content}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-light)', opacity: 0.7 }}>
+                          {fmtDate(n.created_at)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Pied */}
+            {notifs.length > 0 && (
+              <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-light)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <CheckCheck size={13} /> {notifs.length} notification{notifs.length > 1 ? 's' : ''}
+                </span>
+              </div>
+            )}
+          </div>
         )}
       </div>
 

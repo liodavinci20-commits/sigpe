@@ -12,6 +12,9 @@ import OnboardingParent  from './pages/OnboardingParent';
 import OnboardingTeacher     from './pages/OnboardingTeacher';
 import OnboardingTeacherHead from './pages/OnboardingTeacherHead';
 import OnboardingCounselor   from './pages/OnboardingCounselor';
+import OnboardingAdmin       from './pages/OnboardingAdmin';
+import SuperAdminProfile    from './pages/SuperAdminProfile';
+import ParentProfile        from './pages/ParentProfile';
 import Dashboard from './pages/Dashboard';
 import Students from './pages/Students';
 import Profile from './pages/Profile';
@@ -37,6 +40,7 @@ const App = () => {
             <Route path="/onboarding-teacher"      element={<OnboardingTeacher />} />
             <Route path="/onboarding-teacher-head" element={<OnboardingTeacherHead />} />
             <Route path="/onboarding-counselor"    element={<OnboardingCounselor />} />
+            <Route path="/onboarding-admin"         element={<OnboardingAdmin />} />
           </Route>
 
           {/* Routes privées: Si Non connecté -> redirige Login */}
@@ -51,7 +55,9 @@ const App = () => {
               <Route path="/schedule" element={<Schedule />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/parent" element={<Parent />} />
-              <Route path="/teacher-profile" element={<TeacherProfile />} />
+              <Route path="/teacher-profile"      element={<TeacherProfile />} />
+              <Route path="/super-admin-profile" element={<SuperAdminProfile />} />
+              <Route path="/parent-profile"     element={<ParentProfile />} />
               
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Route>

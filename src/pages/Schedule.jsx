@@ -427,159 +427,304 @@ const Schedule = () => {
   const renderGrid = (title, subtitle, showBack, showAdd, isPersonal) => (
     <section className="page-section active">
       <Toast />
-      <div className="page-top-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+
+      {/* ── Barre de titre ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           {showBack && (
             <button onClick={() => { setView('list'); setSlots([]); setSelectedClass(null); }}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '8px', border: '1.5px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'var(--text-light)', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
-              <ArrowLeft size={16} /> Retour
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 16px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-mid)', cursor: 'pointer', fontSize: '13px', fontWeight: 600, transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--green)'; e.currentTarget.style.color = 'var(--green)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-mid)'; }}>
+              <ArrowLeft size={15} /> Retour
             </button>
           )}
           <div>
-            <h3 style={{ margin: 0 }}>{title}</h3>
-            <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-light)' }}>{subtitle}</p>
+            <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: 'var(--text-dark)' }}>{title}</h2>
+            <p style={{ margin: '2px 0 0', fontSize: '13px', color: 'var(--text-light)' }}>{subtitle}</p>
           </div>
         </div>
         {showAdd && (
           <button className="btn-sm btn-green" onClick={openModal}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Plus size={16} /> Ajouter un créneau
+            style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', fontSize: '13px' }}>
+            <Plus size={15} /> Ajouter un créneau
           </button>
         )}
       </div>
 
       {loadingSlots ? (
-        <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-          <Loader size={20} /> Chargement…
+        <div style={{ padding: '80px', textAlign: 'center', color: 'var(--text-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+          <Loader size={22} /> Chargement de l'emploi du temps…
         </div>
       ) : slots.length === 0 ? (
-        <div style={{ padding: '60px', textAlign: 'center' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📅</div>
-          <p style={{ color: 'var(--text-dark)', fontWeight: 600, fontSize: '16px', margin: '0 0 8px' }}>
+        /* ── État vide ── */
+        <div style={{ background: 'var(--bg-card)', border: '2px dashed var(--border)', borderRadius: '16px', padding: '64px 32px', textAlign: 'center' }}>
+          <div style={{ width: '72px', height: '72px', borderRadius: '20px', background: 'var(--green-pale)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+            <CalendarDays size={36} color="var(--green)" />
+          </div>
+          <h3 style={{ color: 'var(--text-dark)', fontSize: '18px', fontWeight: 800, margin: '0 0 8px' }}>
             Aucun emploi du temps{selectedClass ? ` pour ${selectedClass.name}` : ''}
-          </p>
-          <p style={{ color: 'var(--text-light)', fontSize: '13px', margin: '0 0 20px' }}>
-            {showAdd ? 'Cliquez sur "Ajouter un créneau" pour commencer.' : "L'emploi du temps n'a pas encore été créé."}
+          </h3>
+          <p style={{ color: 'var(--text-light)', fontSize: '14px', margin: '0 0 24px', lineHeight: 1.6 }}>
+            {showAdd ? 'Commencez par ajouter le premier créneau de la semaine.' : "L'emploi du temps n'a pas encore été configuré par l'administration."}
           </p>
           {showAdd && (
             <button className="btn-sm btn-green" onClick={openModal}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '14px', padding: '10px 24px' }}>
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 28px', fontSize: '14px', borderRadius: '10px' }}>
               <Plus size={16} /> Créer l'emploi du temps
             </button>
           )}
         </div>
       ) : (
-        <div className="schedule-grid" style={{ overflow: 'hidden', padding: 0 }}>
-          <div className="sg-col-header" style={{ marginLeft: '60px' }}>{DAYS[0]}</div>
-          {DAYS.slice(1).map(d => <div key={d} className="sg-col-header">{d}</div>)}
+        /* ── Grille emploi du temps ── */
+        <div style={{ background: 'var(--bg-card)', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow)', overflow: 'hidden' }}>
 
-          {TIME_ROWS.map((row, ri) =>
-            row.isBreak ? (
-              <React.Fragment key={ri}>
-                <div className="sg-time-label" style={{ fontSize: '10px', opacity: 0.5 }}>{row.time}</div>
-                <div className="sg-cell" style={{ gridColumn: 'span 5' }}>
-                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.07)', color: 'var(--text-light)', textAlign: 'center', fontSize: '11px', padding: '6px', borderRadius: '4px', opacity: 0.6 }}>
-                    {row.label}
-                  </div>
+          {/* En-tête des jours */}
+          <div style={{ display: 'grid', gridTemplateColumns: '72px repeat(5, 1fr)', borderBottom: '2px solid var(--border)' }}>
+            {/* Coin vide */}
+            <div style={{ background: 'var(--bg)', borderRight: '1px solid var(--border)' }} />
+            {DAYS.map((day, i) => (
+              <div key={day} style={{
+                padding: '14px 8px', textAlign: 'center',
+                background: 'var(--bg)',
+                borderRight: i < 4 ? '1px solid var(--border)' : 'none',
+              }}>
+                <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-dark)', fontFamily: "'Plus Jakarta Sans', sans-serif", textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                  {day}
                 </div>
-              </React.Fragment>
-            ) : (
-              <React.Fragment key={ri}>
-                <div className="sg-time-label">{row.time}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Corps de la grille */}
+          {TIME_ROWS.map((row, ri) => {
+            if (row.isBreak) return (
+              <div key={ri} style={{
+                display: 'grid', gridTemplateColumns: '72px 1fr',
+                background: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.015) 4px, rgba(0,0,0,0.015) 8px)',
+                borderBottom: '1px solid var(--border)', minHeight: '32px',
+              }}>
+                <div style={{ borderRight: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}>
+                  <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', letterSpacing: '0.5px', textTransform: 'uppercase', transform: 'rotate(-90deg)', whiteSpace: 'nowrap' }}>
+                    {row.label}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-light)', fontWeight: 600, opacity: 0.6 }}>— {row.label} —</span>
+                </div>
+              </div>
+            );
+
+            return (
+              <div key={ri} style={{
+                display: 'grid', gridTemplateColumns: '72px repeat(5, 1fr)',
+                borderBottom: ri < TIME_ROWS.length - 1 ? '1px solid var(--border)' : 'none',
+                minHeight: '84px',
+              }}>
+                {/* Heure */}
+                <div style={{
+                  borderRight: '1px solid var(--border)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  padding: '8px 4px', background: 'var(--bg)',
+                  gap: '2px',
+                }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--navy-mid)', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    {row.time}
+                  </span>
+                  <div style={{ width: '20px', height: '2px', borderRadius: '2px', background: 'var(--green)', opacity: 0.4 }} />
+                </div>
+
+                {/* Cellules jours */}
                 {DAYS.map((_, di) => {
                   const slot = getSlot(di, row.time);
                   return (
-                    <div key={di} className="sg-cell">
-                      {slot && (
-                        <div className={`sg-slot ${slot.color || autoColor(slot.subject_name)}`} style={{ position: 'relative' }}>
-                          <strong>{slot.subject_name}</strong>
-                          {isPersonal && slot.classes?.name && <span style={{ fontWeight: 700 }}>{slot.classes.name}</span>}
-                          {slot.teacher_name && !isPersonal && <span>{slot.teacher_name}</span>}
-                          {slot.room && <span>{slot.room}</span>}
+                    <div key={di} style={{
+                      borderRight: di < 4 ? '1px solid var(--border)' : 'none',
+                      padding: '6px',
+                      background: slot ? 'transparent' : 'transparent',
+                      transition: 'background 0.15s',
+                      position: 'relative',
+                    }}
+                      onMouseEnter={e => { if (!slot) e.currentTarget.style.background = 'rgba(0,168,107,0.03)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      {slot ? (
+                        <div className={`sg-slot ${slot.color || autoColor(slot.subject_name)}`}
+                          style={{ height: '100%', minHeight: '72px', position: 'relative', borderRadius: '10px' }}>
+                          <strong style={{ fontSize: '12px', fontWeight: 800, lineHeight: 1.3 }}>
+                            {slot.subject_name}
+                          </strong>
+                          {isPersonal && slot.classes?.name && (
+                            <span style={{ fontSize: '11px', fontWeight: 700, opacity: 0.85 }}>
+                              {slot.classes.name}
+                            </span>
+                          )}
+                          {slot.teacher_name && !isPersonal && (
+                            <span style={{ fontSize: '11px', opacity: 0.75 }}>
+                              👤 {slot.teacher_name}
+                            </span>
+                          )}
+                          {slot.room && (
+                            <span style={{ fontSize: '10px', opacity: 0.6 }}>
+                              📍 {slot.room}
+                            </span>
+                          )}
                           {isAdmin && !user?.isDemo && (
-                            <button onClick={() => deleteSlot(slot.id)} title="Supprimer"
-                              style={{ position: 'absolute', top: '3px', right: '3px', background: 'rgba(239,68,68,0.18)', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#ef4444', width: '18px', height: '18px', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>×</button>
+                            <button
+                              onClick={e => { e.stopPropagation(); deleteSlot(slot.id); }}
+                              title="Supprimer ce créneau"
+                              style={{
+                                position: 'absolute', top: '5px', right: '5px',
+                                width: '20px', height: '20px',
+                                background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
+                                borderRadius: '6px', cursor: 'pointer', color: '#ef4444',
+                                fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                padding: 0, lineHeight: 1, transition: 'all 0.15s',
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.3)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; }}
+                            >×</button>
                           )}
                         </div>
+                      ) : (
+                        showAdd && (
+                          <button onClick={openModal}
+                            style={{
+                              width: '100%', height: '100%', minHeight: '72px',
+                              border: '1.5px dashed transparent', borderRadius: '10px',
+                              background: 'transparent', cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              color: 'var(--border)', fontSize: '18px', transition: 'all 0.2s',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--green)'; e.currentTarget.style.color = 'var(--green)'; e.currentTarget.style.background = 'rgba(0,168,107,0.04)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.color = 'var(--border)'; e.currentTarget.style.background = 'transparent'; }}
+                          >+</button>
+                        )
                       )}
                     </div>
                   );
                 })}
-              </React.Fragment>
-            )
-          )}
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* ── Modal ── */}
+      {/* ── Légende des couleurs ── */}
+      {slots.length > 0 && (
+        <div style={{ marginTop: '16px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Matières :</span>
+          {[
+            { key: 'math', label: 'Maths',     bg: '#BFDBFE', color: '#1E40AF' },
+            { key: 'fr',   label: 'Français',  bg: '#FECACA', color: '#991B1B' },
+            { key: 'hist', label: 'Hist-Géo',  bg: '#FDE68A', color: '#92400E' },
+            { key: 'pc',   label: 'Physique',  bg: '#E9D5FF', color: '#5B21B6' },
+            { key: 'svt',  label: 'SVT',       bg: '#A7F3D0', color: '#065F46' },
+            { key: 'eng',  label: 'Langues',   bg: '#FED7AA', color: '#9A3412' },
+            { key: 'sport',label: 'EPS',       bg: '#A7F3D0', color: '#047857' },
+          ].map(l => (
+            <div key={l.key} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '3px 9px', borderRadius: '20px', background: l.bg, fontSize: '11px', fontWeight: 700, color: l.color }}>
+              {l.label}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Modal ajout créneau ── */}
       {showModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
-          <div style={{ background: 'var(--card-bg, #1e293b)', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '460px', boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }}>
-            <h3 style={{ margin: '0 0 20px', color: 'var(--text-dark, #f1f5f9)', fontSize: '17px' }}>
-              Nouveau créneau — {selectedClass?.name}
-            </h3>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(6,17,42,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
+          <div style={{
+            background: 'var(--bg-card)', borderRadius: '20px', padding: '28px',
+            width: '100%', maxWidth: '480px',
+            boxShadow: '0 24px 60px rgba(0,0,0,0.2)',
+            border: '1px solid var(--border)',
+            animation: 'fade-up 0.3s ease',
+          }}>
+            {/* En-tête modal */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '24px' }}>
+              <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'var(--green-pale)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <CalendarDays size={22} color="var(--green)" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: 'var(--text-dark)' }}>
+                  Nouveau créneau
+                </h3>
+                <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-light)' }}>{selectedClass?.name}</p>
+              </div>
+              <button onClick={() => setShowModal(false)}
+                style={{ marginLeft: 'auto', width: '32px', height: '32px', borderRadius: '8px', border: '1.5px solid var(--border)', background: 'transparent', cursor: 'pointer', fontSize: '18px', color: 'var(--text-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                ×
+              </button>
+            </div>
 
             {loadingModal ? (
               <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                 <Loader size={18} /> Chargement des matières…
               </div>
             ) : (
-              <div style={{ display: 'grid', gap: '14px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
+                {/* Jour */}
                 <div>
-                  <label style={labelSt}>Jour</label>
-                  <select value={form.day} onChange={e => setForm(f => ({ ...f, day: e.target.value }))} style={inputSt}>
-                    {DAYS.map((d, i) => <option key={i} value={i + 1}>{d}</option>)}
-                  </select>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <div>
-                    <label style={labelSt}>Début</label>
-                    <select value={form.start_time} onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))} style={inputSt}>
-                      {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={labelSt}>Fin</label>
-                    <select value={form.end_time} onChange={e => setForm(f => ({ ...f, end_time: e.target.value }))} style={inputSt}>
-                      {TIME_OPTIONS.filter(t => t > form.start_time).map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '7px' }}>Jour</label>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {DAYS.map((d, i) => (
+                      <button key={i} onClick={() => setForm(f => ({ ...f, day: i + 1 }))}
+                        style={{
+                          padding: '7px 14px', borderRadius: '8px', border: '1.5px solid',
+                          borderColor: Number(form.day) === i + 1 ? 'var(--green)' : 'var(--border)',
+                          background: Number(form.day) === i + 1 ? 'var(--green-pale)' : 'var(--bg)',
+                          color: Number(form.day) === i + 1 ? 'var(--green)' : 'var(--text-mid)',
+                          fontWeight: 700, fontSize: '12px', cursor: 'pointer', transition: 'all 0.15s',
+                        }}>
+                        {d.slice(0, 3)}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                {/* Matière — autocomplete */}
+                {/* Horaires */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  {[['Début', 'start_time'], ['Fin', 'end_time']].map(([label, key]) => (
+                    <div key={key}>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '7px' }}>{label}</label>
+                      <select value={form[key]}
+                        onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '9px', border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text-dark)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', outline: 'none' }}>
+                        {(key === 'end_time' ? TIME_OPTIONS.filter(t => t > form.start_time) : TIME_OPTIONS)
+                          .map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Matière */}
                 <div style={{ position: 'relative' }}>
-                  <label style={labelSt}>
-                    Matière *
-                    {form.classSubjectId && <span style={{ marginLeft: '6px', fontSize: '11px', color: 'var(--green)', fontWeight: 400 }}>✓ sélectionnée</span>}
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '7px' }}>
+                    Matière *{form.classSubjectId && <span style={{ marginLeft: '8px', color: 'var(--green)', textTransform: 'none', letterSpacing: 0 }}>✓ sélectionnée</span>}
                   </label>
                   {modalSubjects.length === 0 ? (
-                    <div style={{ fontSize: '12px', color: 'var(--text-light)', padding: '10px 0' }}>
-                      Aucune matière assignée à cette classe. Allez dans Paramètres pour assigner des matières.
+                    <div style={{ padding: '12px 14px', borderRadius: '9px', background: 'var(--amber-pale)', border: '1px solid #FDE68A', fontSize: '13px', color: '#92400E' }}>
+                      Aucune matière assignée à cette classe.
                     </div>
                   ) : (
                     <>
                       <input type="text" placeholder="Rechercher une matière…"
                         value={subjectSearch}
-                        onChange={e => {
-                          setSubjectSearch(e.target.value);
-                          setShowSuggestions(true);
-                          if (form.classSubjectId) setForm(f => ({ ...f, classSubjectId: '', subjectName: '', teacherId: '', teacherName: '' }));
-                        }}
+                        onChange={e => { setSubjectSearch(e.target.value); setShowSuggestions(true); if (form.classSubjectId) setForm(f => ({ ...f, classSubjectId: '', subjectName: '', teacherId: '', teacherName: '' })); }}
                         onFocus={() => setShowSuggestions(true)}
                         onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                        style={{ ...inputSt, border: `1.5px solid ${form.classSubjectId ? 'rgba(34,197,94,0.5)' : 'rgba(255,255,255,0.1)'}`, background: form.classSubjectId ? 'rgba(34,197,94,0.05)' : 'rgba(255,255,255,0.04)' }}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '9px', border: `1.5px solid ${form.classSubjectId ? 'var(--green)' : 'var(--border)'}`, background: form.classSubjectId ? 'var(--green-pale)' : 'var(--bg)', color: 'var(--text-dark)', fontSize: '13px', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
                         autoComplete="off"
                       />
                       {showSuggestions && filteredSuggestions.length > 0 && (
-                        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--card-bg, #1e293b)', border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: '10px', zIndex: 100, boxShadow: '0 12px 32px rgba(0,0,0,0.4)', maxHeight: '200px', overflowY: 'auto' }}>
+                        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--bg-card)', border: '1.5px solid var(--border)', borderRadius: '12px', zIndex: 100, boxShadow: 'var(--shadow-lg)', maxHeight: '200px', overflowY: 'auto' }}>
                           {filteredSuggestions.map(s => (
                             <div key={s.classSubjectId} onMouseDown={() => handleSubjectSelect(s)}
-                              style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.08)'}
+                              style={{ padding: '11px 14px', cursor: 'pointer', borderBottom: '1px solid var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'background 0.15s' }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'var(--green-pale)'}
                               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                              <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-dark, #f1f5f9)' }}>{s.subjectName}</span>
+                              <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-dark)' }}>{s.subjectName}</span>
                               {s.teacherName && s.teacherName !== '—' && (
                                 <span style={{ fontSize: '11px', color: 'var(--text-light)' }}>{s.teacherName}</span>
                               )}
@@ -587,32 +732,35 @@ const Schedule = () => {
                           ))}
                         </div>
                       )}
-                      {showSuggestions && subjectSearch && filteredSuggestions.length === 0 && (
-                        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--card-bg, #1e293b)', border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: '10px', zIndex: 100, padding: '12px 14px', fontSize: '13px', color: 'var(--text-light)' }}>
-                          Aucune matière trouvée pour « {subjectSearch} »
-                        </div>
-                      )}
                     </>
                   )}
                 </div>
 
-                {/* Enseignant auto-rempli */}
-                <div>
-                  <label style={labelSt}>Enseignant {form.teacherName && <span style={{ fontSize: '11px', color: 'var(--green)', fontWeight: 400 }}>(auto-rempli)</span>}</label>
-                  <div style={{ padding: '10px 12px', borderRadius: '8px', border: `1.5px solid ${form.teacherName ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.1)'}`, background: form.teacherName ? 'rgba(34,197,94,0.06)' : 'rgba(255,255,255,0.04)', color: form.teacherName ? 'var(--green)' : 'var(--text-light)', fontSize: '13px', fontWeight: form.teacherName ? 700 : 400, minHeight: '40px', display: 'flex', alignItems: 'center' }}>
-                    {form.teacherName || 'Sera rempli après sélection de la matière'}
+                {/* Enseignant */}
+                {form.teacherName && (
+                  <div style={{ padding: '11px 14px', borderRadius: '9px', background: 'var(--green-pale)', border: '1.5px solid rgba(0,168,107,0.3)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'var(--green)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, flexShrink: 0 }}>
+                      {form.teacherName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: 'var(--green)', fontWeight: 700 }}>{form.teacherName}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-light)' }}>Enseignant assigné à cette matière</div>
+                    </div>
                   </div>
-                </div>
+                )}
 
+                {/* Salle */}
                 <div>
-                  <label style={labelSt}>Salle / Lieu</label>
-                  <input type="text" placeholder="Ex : Salle 12, Labo A, Stade"
-                    value={form.room} onChange={e => setForm(f => ({ ...f, room: e.target.value }))} style={inputSt} />
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '7px' }}>Salle / Lieu</label>
+                  <input type="text" placeholder="Ex : Salle 12, Labo A, Terrain de sport"
+                    value={form.room} onChange={e => setForm(f => ({ ...f, room: e.target.value }))}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '9px', border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text-dark)', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                  />
                 </div>
 
                 {form.teacherId && (
-                  <div style={{ padding: '10px 14px', borderRadius: '10px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', fontSize: '12px', color: 'var(--text-light)', lineHeight: 1.6 }}>
-                    📨 Notification envoyée à <strong style={{ color: 'var(--green)' }}>{form.teacherName}</strong> après enregistrement.
+                  <div style={{ padding: '10px 14px', borderRadius: '9px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)', fontSize: '12px', color: 'var(--text-mid)' }}>
+                    📨 Une notification sera envoyée à <strong style={{ color: 'var(--blue-accent)' }}>{form.teacherName}</strong> après enregistrement.
                   </div>
                 )}
               </div>
@@ -620,8 +768,12 @@ const Schedule = () => {
 
             {!loadingModal && (
               <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
-                <button onClick={() => setShowModal(false)} style={{ flex: 1, padding: '11px', borderRadius: '10px', border: '1.5px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'var(--text-light)', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}>Annuler</button>
-                <button onClick={addSlot} disabled={saving || !form.classSubjectId} style={{ flex: 2, padding: '11px', borderRadius: '10px', border: 'none', background: saving || !form.classSubjectId ? 'rgba(34,197,94,0.3)' : 'var(--green)', color: '#fff', cursor: saving || !form.classSubjectId ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                <button onClick={() => setShowModal(false)}
+                  style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-mid)', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}>
+                  Annuler
+                </button>
+                <button onClick={addSlot} disabled={saving || !form.classSubjectId}
+                  style={{ flex: 2, padding: '12px', borderRadius: '10px', border: 'none', background: saving || !form.classSubjectId ? 'var(--border)' : 'var(--green)', color: saving || !form.classSubjectId ? 'var(--text-light)' : '#fff', cursor: saving || !form.classSubjectId ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', transition: 'background 0.2s' }}>
                   {saving ? <><Loader size={15} /> Enregistrement…</> : <><Plus size={15} /> Ajouter le créneau</>}
                 </button>
               </div>

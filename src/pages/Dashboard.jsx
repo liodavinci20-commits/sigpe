@@ -3,36 +3,42 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
 import {
   GraduationCap, Users, BookOpen, AlertTriangle,
-  Clock, CalendarCheck, MessageSquare, Send, Loader,
-  Bell, RefreshCw, School, X, UserCheck
+  MessageSquare, Send, Loader,
+  Bell, RefreshCw, School, X, Building2, TrendingUp, ShieldAlert, Plus, Clock
 } from 'lucide-react';
 
 const Dashboard = () => {
   const { user } = useAuth();
   const [toast, setToast] = useState(null);
 
-  // Stats réelles admin
+  // Stats admin (par établissement)
   const [stats,        setStats]        = useState({ students: 0, teachers: 0, classes: 0, messages: 0 });
   const [activities,   setActivities]   = useState([]);
   const [loadingStats, setLoadingStats] = useState(true);
 
-  // Établissements
-  const [instGroups,  setInstGroups]  = useState([]);
-  const [allInstList, setAllInstList] = useState([]);
-  const [loadingInst, setLoadingInst] = useState(false);
-  const [instModal,   setInstModal]   = useState(null); // { id, name, students[] }
-  const [savingId,    setSavingId]    = useState(null);
+  // Stats super_admin (globales)
+  const [superStats,       setSuperStats]       = useState({ institutions: 0, students: 0, teachers: 0 });
+  const [instCards,        setInstCards]        = useState([]);
+  const [loadingSuper,     setLoadingSuper]     = useState(false);
+  const [adminInstitution, setAdminInstitution] = useState(null);
+
+  // Création établissement
+  const [showInstModal, setShowInstModal] = useState(false);
+  const [instForm,      setInstForm]      = useState({ name: '', code: '' });
+  const [savingInst,    setSavingInst]    = useState(false);
+  const [instError,     setInstError]     = useState('');
 
   // Notifications enseignant
   const [teacherNotifs,        setTeacherNotifs]        = useState([]);
   const [loadingTeacherNotifs, setLoadingTeacherNotifs] = useState(false);
-  // Vraies classes du prof
-  const [myClasses,          setMyClasses]          = useState([]);
-  const [teacherInstitution, setTeacherInstitution] = useState(null);
+  const [myClasses,            setMyClasses]            = useState([]);
+  const [teacherInstitution,   setTeacherInstitution]   = useState(null);
 
   useEffect(() => {
     if (!user) return;
-    if (user.role === 'admin' && !user.isDemo) {
+    if (user.role === 'super_admin' && !user.isDemo) {
+      fetchSuperAdminStats();
+    } else if (user.role === 'admin' && !user.isDemo) {
       fetchAdminStats();
     } else if (user.role === 'teacher_course' && !user.isDemo) {
       fetchTeacherData();
@@ -41,22 +47,94 @@ const Dashboard = () => {
     }
   }, [user]);
 
+  // ── Stats Délégué Départemental (vue globale) ──────────────────
+  const fetchSuperAdminStats = async () => {
+    setLoadingSuper(true);
+    try {
+      const [{ data: institutions }, { data: profiles }] = await Promise.all([
+        supabase.from('institutions').select('id, name, code').order('name'),
+        supabase.from('profiles').select('id, role, institution_id')
+          .in('role', ['student', 'teacher_course', 'teacher_head', 'counselor']),
+      ]);
+
+      const insts    = institutions || [];
+      const profiles_ = profiles   || [];
+
+      // Agréger par institution
+      const cards = insts.map(inst => {
+        const instProfiles = profiles_.filter(p => p.institution_id === inst.id);
+        return {
+          ...inst,
+          students: instProfiles.filter(p => p.role === 'student').length,
+          teachers: instProfiles.filter(p => ['teacher_course','teacher_head','counselor'].includes(p.role)).length,
+        };
+      });
+
+      setSuperStats({
+        institutions: insts.length,
+        students:     profiles_.filter(p => p.role === 'student').length,
+        teachers:     profiles_.filter(p => ['teacher_course','teacher_head','counselor'].includes(p.role)).length,
+      });
+      setInstCards(cards);
+    } catch (err) {
+      console.error('Erreur super_admin stats:', err);
+    } finally {
+      setLoadingSuper(false);
+      setLoadingStats(false);
+    }
+  };
+
+  const createInstitution = async () => {
+    if (!instForm.name.trim()) { setInstError('Le nom est obligatoire.'); return; }
+    setSavingInst(true);
+    setInstError('');
+    try {
+      const { error } = await supabase.from('institutions').insert({
+        name: instForm.name.trim(),
+        code: instForm.code.trim() || null,
+      });
+      if (error) throw error;
+      setInstForm({ name: '', code: '' });
+      setShowInstModal(false);
+      setToast('✅ Établissement créé avec succès !');
+      setTimeout(() => setToast(null), 4000);
+      fetchSuperAdminStats(); // Rafraîchir la liste
+    } catch (err) {
+      setInstError('Erreur : ' + err.message);
+    } finally {
+      setSavingInst(false);
+    }
+  };
+
+  // ── Stats Admin (filtrés par son établissement) ─────────────────
   const fetchAdminStats = async () => {
     setLoadingStats(true);
+    const instId = user.institutionId;
     try {
+      // Nom de l'établissement de l'admin
+      if (instId) {
+        const { data: inst } = await supabase.from('institutions').select('name').eq('id', instId).single();
+        setAdminInstitution(inst?.name || null);
+      }
+
+      const studentsQ = supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'student');
+      const teachersQ = supabase.from('profiles').select('*', { count: 'exact', head: true }).in('role', ['teacher_course', 'teacher_head', 'counselor']);
+      const classesQ  = supabase.from('classes').select('*', { count: 'exact', head: true });
+      const messagesQ = supabase.from('messages').select('*', { count: 'exact', head: true }).eq('is_read', false);
+      const notifsQ   = supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(6);
+
+      if (instId) {
+        studentsQ.eq('institution_id', instId);
+        teachersQ.eq('institution_id', instId);
+      }
+
       const [
         { count: studentsCount },
         { count: teachersCount },
         { count: classesCount },
         { count: messagesCount },
         { data: recentNotifs }
-      ] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'student'),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).in('role', ['teacher_course', 'teacher_head', 'counselor']),
-        supabase.from('classes').select('*', { count: 'exact', head: true }),
-        supabase.from('messages').select('*', { count: 'exact', head: true }).eq('is_read', false),
-        supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(6)
-      ]);
+      ] = await Promise.all([studentsQ, teachersQ, classesQ, messagesQ, notifsQ]);
 
       setStats({
         students: studentsCount || 0,
@@ -70,8 +148,6 @@ const Dashboard = () => {
     } finally {
       setLoadingStats(false);
     }
-    // Charger les données d'établissements en parallèle
-    loadInstitutionData();
   };
 
   const loadInstitutionData = async () => {
@@ -207,9 +283,257 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* ── ADMIN ── */}
+      {/* ── DÉLÉGUÉ DÉPARTEMENTAL (super_admin) ── */}
+      {user?.role === 'super_admin' && (
+        <>
+          {/* Bannière rôle */}
+          <div style={{
+            marginBottom: '24px', padding: '16px 22px', borderRadius: '14px',
+            background: 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(245,158,11,0.05))',
+            border: '1.5px solid rgba(245,158,11,0.3)',
+            display: 'flex', alignItems: 'center', gap: '14px',
+          }}>
+            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <ShieldAlert size={22} color="#f59e0b" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-dark)' }}>Délégué Départemental</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '1px' }}>
+                Vue globale — tous les établissements du département
+              </div>
+            </div>
+          </div>
+
+          {/* Stats globales */}
+          {loadingSuper ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+              <Loader size={22} /> Chargement des statistiques globales…
+            </div>
+          ) : (
+            <>
+              <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                {[
+                  { icon: <Building2 size={28} />, color: 'amber', label: 'Établissements', value: superStats.institutions, trend: 'Dans le département' },
+                  { icon: <GraduationCap size={28} />, color: 'green', label: 'Total Élèves', value: superStats.students, trend: 'Tous établissements' },
+                  { icon: <Users size={28} />, color: 'blue', label: 'Total Enseignants', value: superStats.teachers, trend: 'Corps enseignant global' },
+                ].map((s, i) => (
+                  <div key={i} className="stat-card">
+                    <div className={`stat-icon ${s.color}`}>{s.icon}</div>
+                    <div className="stat-info">
+                      <div className="stat-label">{s.label}</div>
+                      <div className="stat-value">{s.value}</div>
+                      <div className="stat-trend up">{s.trend}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Cartes par établissement */}
+              <div className="card" style={{ marginTop: '24px' }}>
+                <div className="card-header">
+                  <div>
+                    <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Building2 size={18} /> Établissements enregistrés
+                    </h3>
+                    <p>Effectifs par établissement</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button className="btn-sm btn-outline" onClick={fetchSuperAdminStats}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
+                      <RefreshCw size={12} /> Actualiser
+                    </button>
+                    <button className="btn-sm btn-green" onClick={() => { setInstForm({ name: '', code: '' }); setInstError(''); setShowInstModal(true); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
+                      <Plus size={13} /> Nouvel établissement
+                    </button>
+                  </div>
+                </div>
+                <div className="card-body">
+                  {instCards.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-light)', fontSize: '13px' }}>
+                      Aucun établissement trouvé. Ajoutez-en dans la table <code>institutions</code>.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {instCards.map((inst, idx) => {
+                        const colors = ['var(--green)', 'var(--blue-accent)', '#8b5cf6', '#f59e0b', '#ef4444'];
+                        const color  = colors[idx % colors.length];
+                        const total  = inst.students + inst.teachers;
+                        return (
+                          <div key={inst.id} style={{
+                            display: 'flex', alignItems: 'center', gap: '16px',
+                            padding: '14px 16px', borderRadius: '12px',
+                            background: 'var(--bg)', border: '1px solid var(--border)',
+                          }}>
+                            <div style={{
+                              width: '44px', height: '44px', borderRadius: '12px', flexShrink: 0,
+                              background: color + '18',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
+                              <School size={20} color={color} />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-dark)', marginBottom: '6px' }}>
+                                {inst.name}
+                                {inst.code && <span style={{ marginLeft: '8px', fontSize: '11px', color: 'var(--text-light)', fontWeight: 400 }}>[{inst.code}]</span>}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{ flex: 1, height: '5px', background: 'var(--border)', borderRadius: '20px', overflow: 'hidden' }}>
+                                  <div style={{ height: '100%', width: superStats.students > 0 ? `${Math.round((inst.students / superStats.students) * 100)}%` : '0%', background: color, borderRadius: '20px', transition: 'width 0.6s ease' }} />
+                                </div>
+                                <span style={{ fontSize: '12px', color: 'var(--text-light)', whiteSpace: 'nowrap' }}>
+                                  <strong style={{ color: 'var(--text-dark)' }}>{inst.students}</strong> élèves ·{' '}
+                                  <strong style={{ color: 'var(--text-dark)' }}>{inst.teachers}</strong> enseignants
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {/* ── Modal création établissement ── */}
+      {showInstModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+          backdropFilter: 'blur(4px)', zIndex: 1300,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
+        }}>
+          <div style={{
+            background: 'var(--bg-card)', borderRadius: '20px', padding: '28px',
+            width: '100%', maxWidth: '420px',
+            boxShadow: '0 24px 60px rgba(0,0,0,0.2)',
+            border: '1px solid var(--border)',
+            animation: 'fade-up 0.3s ease',
+          }}>
+            {/* En-tête */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '22px' }}>
+              <div style={{
+                width: '44px', height: '44px', borderRadius: '12px',
+                background: 'rgba(0,168,107,0.1)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <Building2 size={22} color="var(--green)" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text-dark)' }}>
+                  Nouvel établissement
+                </h3>
+                <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-light)' }}>
+                  Sera disponible lors de l'inscription des admins
+                </p>
+              </div>
+              <button onClick={() => setShowInstModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-light)', padding: '4px' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Formulaire */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '7px' }}>
+                  Nom de l'établissement *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex : Lycée Général Leclerc"
+                  value={instForm.name}
+                  onChange={e => setInstForm(f => ({ ...f, name: e.target.value }))}
+                  autoFocus
+                  style={{
+                    width: '100%', padding: '11px 14px', borderRadius: '10px',
+                    border: `1.5px solid ${instError ? '#ef4444' : 'var(--border)'}`,
+                    background: 'var(--bg)', color: 'var(--text-dark)',
+                    fontSize: '14px', outline: 'none', boxSizing: 'border-box',
+                    transition: 'border-color 0.2s',
+                  }}
+                  onKeyDown={e => e.key === 'Enter' && createInstitution()}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '7px' }}>
+                  Code / Sigle <span style={{ fontWeight: 400, textTransform: 'none' }}>(optionnel)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex : LGL, CES-MVOG"
+                  value={instForm.code}
+                  onChange={e => setInstForm(f => ({ ...f, code: e.target.value }))}
+                  style={{
+                    width: '100%', padding: '11px 14px', borderRadius: '10px',
+                    border: '1.5px solid var(--border)',
+                    background: 'var(--bg)', color: 'var(--text-dark)',
+                    fontSize: '14px', outline: 'none', boxSizing: 'border-box',
+                  }}
+                  onKeyDown={e => e.key === 'Enter' && createInstitution()}
+                />
+              </div>
+
+              {instError && (
+                <div style={{
+                  padding: '10px 14px', borderRadius: '8px',
+                  background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)',
+                  fontSize: '13px', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px',
+                }}>
+                  <AlertTriangle size={14} /> {instError}
+                </div>
+              )}
+            </div>
+
+            {/* Boutons */}
+            <div style={{ display: 'flex', gap: '10px', marginTop: '22px' }}>
+              <button onClick={() => setShowInstModal(false)}
+                style={{
+                  flex: 1, padding: '11px', borderRadius: '10px',
+                  border: '1.5px solid var(--border)', background: 'transparent',
+                  color: 'var(--text-mid)', cursor: 'pointer', fontWeight: 600, fontSize: '14px',
+                }}>
+                Annuler
+              </button>
+              <button onClick={createInstitution} disabled={savingInst || !instForm.name.trim()}
+                style={{
+                  flex: 2, padding: '11px', borderRadius: '10px', border: 'none',
+                  background: savingInst || !instForm.name.trim() ? 'var(--border)' : 'var(--green)',
+                  color: savingInst || !instForm.name.trim() ? 'var(--text-light)' : '#fff',
+                  cursor: savingInst || !instForm.name.trim() ? 'not-allowed' : 'pointer',
+                  fontWeight: 700, fontSize: '14px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                  transition: 'background 0.2s',
+                }}>
+                {savingInst ? <><Loader size={14} /> Création…</> : <><Plus size={14} /> Créer l'établissement</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ADMIN (par établissement) ── */}
       {user?.role === 'admin' && (
         <>
+          {/* Bannière établissement */}
+          {adminInstitution && (
+            <div style={{
+              marginBottom: '20px', padding: '13px 18px', borderRadius: '12px',
+              background: 'rgba(59,130,246,0.07)', border: '1.5px solid rgba(59,130,246,0.25)',
+              display: 'flex', alignItems: 'center', gap: '12px',
+            }}>
+              <Building2 size={18} color="var(--blue-accent)" />
+              <div style={{ fontSize: '13px' }}>
+                <span style={{ color: 'var(--text-light)' }}>Vous gérez l'établissement : </span>
+                <strong style={{ color: 'var(--blue-accent)' }}>{adminInstitution}</strong>
+              </div>
+            </div>
+          )}
+
           {/* Stats grid */}
           <div className="stats-grid">
             {[
@@ -298,45 +622,6 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Raccourcis admin */}
-            <div className="card">
-              <div className="card-header">
-                <div><h3>⚙️ Gestion du Staff</h3><p>Raccourcis administratifs</p></div>
-              </div>
-              <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <button className="btn-sm btn-outline" style={{ justifyContent: 'center' }}
-                  onClick={() => alert('Module : Ajouter un Enseignant — à brancher')}>
-                  + Inscrire un Nouvel Enseignant
-                </button>
-                <button className="btn-sm btn-outline" style={{ justifyContent: 'center' }}
-                  onClick={() => alert('Module : Nommer un Sous-Admin — à brancher')}>
-                  + Nommer un Sous-Administrateur
-                </button>
-                <button className="btn-sm btn-green" style={{ justifyContent: 'center' }}
-                  onClick={() => window.location.href = '/students'}>
-                  + Voir l'Annuaire Élèves
-                </button>
-
-                {/* Résumé rapide si données dispo */}
-                {!loadingStats && stats.students > 0 && (
-                  <div style={{
-                    marginTop: '8px', padding: '12px', background: 'var(--bg)',
-                    borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px'
-                  }}>
-                    <div style={{ fontWeight: 700, marginBottom: '8px', color: 'var(--text-dark)' }}>Résumé de l'établissement</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-light)' }}>
-                      <span>Élèves inscrits</span><strong style={{ color: 'var(--green)' }}>{stats.students}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-light)', marginTop: '4px' }}>
-                      <span>Personnel enseignant</span><strong style={{ color: 'var(--blue-accent)' }}>{stats.teachers}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-light)', marginTop: '4px' }}>
-                      <span>Classes configurées</span><strong>{stats.classes}</strong>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
         </>
       )}
@@ -505,193 +790,6 @@ const Dashboard = () => {
       {user?.role === 'teacher_head' && <React.Fragment />}
       {user?.role === 'counselor'    && <React.Fragment />}
 
-      {/* ── BLOC ÉTABLISSEMENTS (admin uniquement) ── */}
-      {user?.role === 'admin' && !user?.isDemo && (
-        <>
-          <div className="card" style={{ marginTop: '20px' }}>
-            <div className="card-header">
-              <div>
-                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <School size={18} /> Établissements — Département du Mfoundi
-                </h3>
-                <p>Répartition des élèves par établissement · cliquez sur un établissement pour gérer</p>
-              </div>
-              <button className="btn-sm btn-outline" onClick={loadInstitutionData}
-                style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
-                <RefreshCw size={12} /> Actualiser
-              </button>
-            </div>
-            <div className="card-body">
-              {loadingInst ? (
-                <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                  <Loader size={18} /> Chargement…
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {instGroups.map((group, idx) => {
-                    const pct   = stats.students > 0 ? Math.round((group.students.length / stats.students) * 100) : 0;
-                    const isNull = group.id === null;
-                    const color  = isNull ? '#f59e0b' : ['var(--green)', 'var(--blue-accent)', '#8b5cf6'][idx % 3];
-                    return (
-                      <div key={group.id || 'unassigned'} style={{
-                        display: 'flex', alignItems: 'center', gap: '16px',
-                        padding: '14px 16px', borderRadius: '12px',
-                        background: 'var(--bg)', border: `1.5px solid ${isNull ? 'rgba(245,158,11,0.3)' : 'var(--border)'}`,
-                        transition: 'border-color 0.2s',
-                      }}>
-                        {/* Icône */}
-                        <div style={{
-                          width: '42px', height: '42px', borderRadius: '12px', flexShrink: 0,
-                          background: isNull ? 'rgba(245,158,11,0.1)' : 'rgba(0,168,107,0.1)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          {isNull
-                            ? <AlertTriangle size={20} color="#f59e0b" />
-                            : <School size={20} color="var(--green)" />}
-                        </div>
-
-                        {/* Nom + barre */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-dark)', marginBottom: '6px' }}>
-                            {group.name}
-                            {group.code && (
-                              <span style={{ marginLeft: '8px', fontSize: '11px', color: 'var(--text-light)', fontWeight: 400 }}>
-                                [{group.code}]
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div style={{ flex: 1, height: '6px', background: 'var(--border)', borderRadius: '20px', overflow: 'hidden' }}>
-                              <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: '20px', transition: 'width 0.6s ease' }} />
-                            </div>
-                            <span style={{ fontSize: '12px', color: 'var(--text-light)', whiteSpace: 'nowrap', minWidth: '80px' }}>
-                              <strong style={{ color: 'var(--text-dark)' }}>{group.students.length}</strong> élève{group.students.length !== 1 ? 's' : ''} · {pct}%
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Bouton gérer */}
-                        <button
-                          onClick={() => setInstModal(group)}
-                          style={{
-                            padding: '7px 14px', borderRadius: '8px', border: 'none',
-                            background: isNull ? 'rgba(245,158,11,0.12)' : 'rgba(0,168,107,0.1)',
-                            color: isNull ? '#b45309' : 'var(--green)',
-                            fontWeight: 700, fontSize: '12px', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0,
-                          }}>
-                          <UserCheck size={14} />
-                          {isNull ? 'Assigner' : 'Gérer'}
-                        </button>
-                      </div>
-                    );
-                  })}
-                  {instGroups.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-light)', fontSize: '13px' }}>
-                      Aucun établissement trouvé. Vérifiez la table <code>institutions</code>.
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── Modal assignation élèves ── */}
-          {instModal && (
-            <div style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-              zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
-            }}>
-              <div className="card" style={{ width: '100%', maxWidth: '560px', margin: 0, maxHeight: '82vh', display: 'flex', flexDirection: 'column' }}>
-
-                {/* En-tête */}
-                <div className="card-header" style={{ flexShrink: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{
-                      width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0,
-                      background: instModal.id ? 'rgba(0,168,107,0.1)' : 'rgba(245,158,11,0.1)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      {instModal.id ? <School size={18} color="var(--green)" /> : <AlertTriangle size={18} color="#f59e0b" />}
-                    </div>
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: '15px' }}>{instModal.name}</h3>
-                      <p style={{ margin: 0, fontSize: '12px' }}>
-                        {instModal.students.length} élève{instModal.students.length !== 1 ? 's' : ''} —
-                        {instModal.id ? ' modifier ou transférer vers un autre établissement' : ' assigner un établissement'}
-                      </p>
-                    </div>
-                  </div>
-                  <button onClick={() => setInstModal(null)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-light)', padding: '4px' }}>
-                    <X size={20} />
-                  </button>
-                </div>
-
-                {/* Corps */}
-                <div style={{ overflowY: 'auto', flex: 1, padding: '12px 20px' }}>
-                  {instModal.students.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--text-light)', fontSize: '13px' }}>
-                      <School size={32} style={{ opacity: 0.3, marginBottom: '12px' }} /><br />
-                      Aucun élève dans cet établissement.
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {instModal.students.map(student => (
-                        <div key={student.id} style={{
-                          display: 'flex', alignItems: 'center', gap: '12px',
-                          padding: '10px 14px', borderRadius: '10px',
-                          background: 'var(--bg)', border: '1px solid var(--border)'
-                        }}>
-                          {/* Avatar */}
-                          {student.avatar_url ? (
-                            <img src={student.avatar_url} alt="" style={{ width: '34px', height: '34px', borderRadius: '8px', objectFit: 'cover', flexShrink: 0 }} />
-                          ) : (
-                            <div style={{ width: '34px', height: '34px', borderRadius: '8px', background: 'var(--green)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>
-                              {student.full_name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'}
-                            </div>
-                          )}
-
-                          {/* Nom */}
-                          <div style={{ flex: 1, fontWeight: 600, fontSize: '13px', color: 'var(--text-dark)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {student.full_name || '—'}
-                          </div>
-
-                          {/* Dropdown établissement */}
-                          <select
-                            value={student.institution_id || ''}
-                            disabled={savingId === student.id}
-                            onChange={e => assignStudent(student.id, e.target.value || null)}
-                            style={{
-                              padding: '6px 10px', borderRadius: '8px',
-                              border: '1.5px solid var(--border)', background: 'var(--bg-card)',
-                              color: 'var(--text-dark)', fontSize: '12px', cursor: 'pointer',
-                              flexShrink: 0, maxWidth: '200px',
-                            }}
-                          >
-                            <option value="">-- Non assigné --</option>
-                            {allInstList.map(inst => (
-                              <option key={inst.id} value={inst.id}>{inst.name}</option>
-                            ))}
-                          </select>
-
-                          {/* Spinner */}
-                          {savingId === student.id && <Loader size={14} style={{ flexShrink: 0, color: 'var(--green)' }} />}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Pied */}
-                <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
-                  <button className="btn-sm btn-green" onClick={() => setInstModal(null)}>Fermer</button>
-                </div>
-              </div>
-            </div>
-          )}
-        </>
-      )}
 
       {/* ── Bloc communication (tous les rôles staff) ── */}
       {['admin', 'counselor', 'teacher_head', 'teacher_course'].includes(user?.role) && (

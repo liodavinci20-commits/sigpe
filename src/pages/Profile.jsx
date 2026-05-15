@@ -989,7 +989,7 @@ const Profile = () => {
                               ${ex.dueDate
                                 ? `<p style="margin-top:20px;font-size:13px;color:#666">📅 À rendre avant le : <strong>${new Date(ex.dueDate).toLocaleDateString('fr-FR')}</strong></p>`
                                 : ''}
-                              <p style="margin-top:32px;font-size:12px;color:#aaa">Publié le ${new Date(ex.createdAt).toLocaleDateString('fr-FR')} — SIGPE · ENS Yaoundé</p>
+                              <p style="margin-top:32px;font-size:12px;color:#aaa">Publié le ${new Date(ex.createdAt).toLocaleDateString('fr-FR')} — SIGPE</p>
                             </div>`;
                           sheet.style.display = 'block';
                         }

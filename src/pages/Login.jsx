@@ -30,10 +30,11 @@ const Login = () => {
 
   const handleTierClick = (tier) => {
     setSelectedTier(tier);
+    if (tier === 'super_admin') setRole('super_admin');
     if (tier === 'admin') setRole('admin');
     if (tier === 'parent') setRole('parent');
     if (tier === 'student') setRole('student');
-    if (tier === 'teacher') setRole('teacher_course'); // Default subrole
+    if (tier === 'teacher') setRole('teacher_course');
   };
 
   const doDemoLogin = (e) => {
@@ -105,7 +106,7 @@ const Login = () => {
             <div className="logo-icon"><School size={32} /></div>
             <div className="logo-text">
               <h2>SIGPES</h2>
-              <span>Cameroun — ENS Yaoundé</span>
+              <span>Système de Gestion Pédagogique</span>
             </div>
           </div>
           <div className="login-hero-img">
@@ -129,9 +130,13 @@ const Login = () => {
               <p>Simulez la connexion sous différents rôles système.</p>
 
               <div className="role-selector" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+                <div className={`role-card ${selectedTier === 'super_admin' ? 'active' : ''}`} onClick={() => handleTierClick('super_admin')} style={{ cursor: 'pointer', borderColor: selectedTier === 'super_admin' ? '#f59e0b' : '' }}>
+                  <div className="role-icon"><Map size={24} /></div>
+                  <div className="role-info"><strong>Délégué Départ.</strong><span>Vision globale</span></div>
+                </div>
                 <div className={`role-card ${selectedTier === 'admin' ? 'active' : ''}`} onClick={() => handleTierClick('admin')} style={{ cursor: 'pointer' }}>
                   <div className="role-icon"><ShieldAlert size={24} /></div>
-                  <div className="role-info"><strong>Administration</strong><span>Direction</span></div>
+                  <div className="role-info"><strong>Administration</strong><span>Établissement</span></div>
                 </div>
                 <div className={`role-card ${selectedTier === 'teacher' ? 'active' : ''}`} onClick={() => handleTierClick('teacher')} style={{ cursor: 'pointer' }}>
                   <div className="role-icon"><Users size={24} /></div>
@@ -217,7 +222,10 @@ const Login = () => {
                       <option value="counselor">Conseiller d'Orientation</option>
                     </optgroup>
                     <optgroup label="Équipe de Direction">
-                      <option value="admin">Administration & Scolarité</option>
+                      <option value="admin">Administrateur d'Établissement</option>
+                    </optgroup>
+                    <optgroup label="Supervision Départementale">
+                      <option value="super_admin">Délégué Départemental</option>
                     </optgroup>
                   </select>
                 </div>
@@ -241,7 +249,7 @@ const Login = () => {
             </div>
           )}
 
-          <div className="login-footer" style={{ marginTop: '20px' }}>© 2025 SIGPES — ENS Yaoundé &nbsp;|&nbsp; Support: support@sigpe.cm</div>
+          <div className="login-footer" style={{ marginTop: '20px' }}>© 2025 SIGPES &nbsp;|&nbsp; Support: support@sigpe.cm</div>
         </div>
       </div>
     </div>

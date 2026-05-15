@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { GraduationCap, LayoutDashboard, Users, UserSquare2, FileText, ClipboardList, CalendarDays, TrendingUp, Contact, Settings, LogOut } from 'lucide-react';
+import { GraduationCap, LayoutDashboard, Users, UserSquare2, FileText, ClipboardList, CalendarDays, TrendingUp, Contact, LogOut, Building2, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../supabaseClient';
 
@@ -69,7 +69,7 @@ const Sidebar = () => {
         <div className="s-logo-icon"><GraduationCap size={24} color="white" /></div>
         <div>
           <h1>SIGPES</h1>
-          <span>ENS Yaoundé · 2024–25</span>
+          <span>Année scolaire 2024–25</span>
         </div>
       </div>
 
@@ -88,7 +88,25 @@ const Sidebar = () => {
 
       <nav className="sidebar-nav">
         <div className="nav-section-label">Menu Principal</div>
-        
+
+        {/* Délégué Départemental */}
+        {user?.role === 'super_admin' && (
+          <>
+            <NavLink to="/dashboard" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+              <span className="nav-icon"><LayoutDashboard size={18} /></span> Vue Globale
+            </NavLink>
+            <NavLink to="/students" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+              <span className="nav-icon"><Users size={18} /></span> Tous les Élèves
+            </NavLink>
+            <NavLink to="/super-admin-profile" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+              <span className="nav-icon"><UserSquare2 size={18} /></span> Mon Profil
+            </NavLink>
+            <NavLink to="/reports" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+              <span className="nav-icon"><TrendingUp size={18} /></span> Rapports Globaux
+            </NavLink>
+          </>
+        )}
+
         {(user?.role === 'admin' || user?.role === 'teacher_course' || user?.role === 'teacher_head' || user?.role === 'counselor') && (
           <NavLink to="/dashboard" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
             <span className="nav-icon"><LayoutDashboard size={18} /></span> Tableau de Bord
@@ -115,9 +133,14 @@ const Sidebar = () => {
           </NavLink>
         )}
         {user?.role === 'parent' && (
-          <NavLink to="/profile" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
-            <span className="nav-icon"><UserSquare2 size={18} /></span> Profil de mon enfant
-          </NavLink>
+          <>
+            <NavLink to="/profile" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+              <span className="nav-icon"><UserSquare2 size={18} /></span> Profil de mon enfant
+            </NavLink>
+            <NavLink to="/parent-profile" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+              <span className="nav-icon"><UserSquare2 size={18} /></span> Mon Profil
+            </NavLink>
+          </>
         )}
         
         {user?.role === 'teacher_course' && (
@@ -127,15 +150,17 @@ const Sidebar = () => {
           </NavLink>
         )}
         
-        {(user?.role === 'admin' || user?.role === 'teacher_head' || user?.role === 'parent') && (
+        {(user?.role === 'admin' || user?.role === 'teacher_head' || user?.role === 'parent' || user?.role === 'student') && (
           <NavLink to="/bulletin" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
             <span className="nav-icon"><ClipboardList size={18} /></span> Bulletins
           </NavLink>
         )}
         
-        <NavLink to="/schedule" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
-          <span className="nav-icon"><CalendarDays size={18} /></span> Emplois du Temps
-        </NavLink>
+        {user?.role !== 'super_admin' && (
+          <NavLink to="/schedule" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+            <span className="nav-icon"><CalendarDays size={18} /></span> Emplois du Temps
+          </NavLink>
+        )}
 
         {(user?.role === 'admin' || user?.role === 'counselor' || user?.role === 'teacher_head') && (
           <>
@@ -146,7 +171,7 @@ const Sidebar = () => {
           </>
         )}
 
-        {(user?.role === 'admin' || user?.role === 'parent') && (
+        {user?.role === 'parent' && (
           <>
             <div className="nav-section-label">Portail</div>
             <NavLink to="/parent" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
@@ -157,9 +182,6 @@ const Sidebar = () => {
       </nav>
 
       <div className="sidebar-bottom">
-        <div className="nav-item">
-          <span className="nav-icon"><Settings size={18} /></span> Paramètres
-        </div>
         <div className="nav-item" onClick={handleLogout}>
           <span className="nav-icon"><LogOut size={18} /></span> Déconnexion
         </div>

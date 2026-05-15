@@ -282,7 +282,7 @@ const Parent = () => {
             Parent de <span style={{ color: '#bbf7d0' }}>{child.name || '—'}</span>
           </p>
           <p style={{ margin: '4px 0 0', fontSize: '13px', opacity: 0.75 }}>
-            {child.className || 'Classe non assignée'} · ENS Yaoundé
+            {child.className || 'Classe non assignée'}
           </p>
         </div>
         <div style={{ marginLeft: 'auto', textAlign: 'right' }}>

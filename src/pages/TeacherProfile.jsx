@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
 import {
   User, Phone, BookOpen, GraduationCap, School,
-  Camera, Loader, CheckCircle, AlertTriangle
+  Camera, Loader, CheckCircle, AlertTriangle, Plus, X, Trash2
 } from 'lucide-react';
 
 const TeacherProfile = () => {
@@ -21,6 +21,16 @@ const TeacherProfile = () => {
   const [instId,        setInstId]        = useState('');
   const [savingInst,    setSavingInst]    = useState(false);
 
+  // Gestion des classes
+  const [allClasses,    setAllClasses]    = useState([]);
+  const [allSubjects,   setAllSubjects]   = useState([]);
+  const [showAddModal,  setShowAddModal]  = useState(false);
+  const [selectedSubj,  setSelectedSubj]  = useState('');
+  const [selectedClass, setSelectedClass] = useState('');
+  const [coeff,         setCoeff]         = useState(1);
+  const [savingClass,   setSavingClass]   = useState(false);
+  const [removingId,    setRemovingId]    = useState(null);
+
   const showNotif = (type, text) => {
     setNotification({ type, text });
     setTimeout(() => setNotification(null), 4500);
@@ -37,6 +47,14 @@ const TeacherProfile = () => {
       // Établissements disponibles
       const { data: instRows } = await supabase.from('institutions').select('id, name').order('name');
       setInstitutions(instRows || []);
+
+      // Toutes les classes disponibles
+      const { data: classRows } = await supabase.from('classes').select('id, name, level').order('name');
+      setAllClasses(classRows || []);
+
+      // Toutes les matières disponibles
+      const { data: subjectRows } = await supabase.from('subjects').select('id, name').order('name');
+      setAllSubjects(subjectRows || []);
 
       // 1. Profil de base
       const { data: profileRow } = await supabase
@@ -60,7 +78,7 @@ const TeacherProfile = () => {
       // 3. Matières enseignées (teacher_course et teacher_head peuvent enseigner)
       const { data: csRows } = await supabase
         .from('class_subjects')
-        .select('coefficient, classes(name, level), subjects(name)')
+        .select('id, coefficient, classes(id, name, level), subjects(id, name)')
         .eq('teacher_id', user.id)
         .order('classes(name)');
       setClassSubjects(csRows || []);
@@ -76,6 +94,52 @@ const TeacherProfile = () => {
     await supabase.from('profiles').update({ institution_id: newInstId || null }).eq('id', user.id);
     setSavingInst(false);
     showNotif('success', 'Établissement mis à jour !');
+  };
+
+  const addClassAssignment = async () => {
+    if (!selectedSubj || !selectedClass) { showNotif('error', 'Sélectionnez une matière et une classe.'); return; }
+    setSavingClass(true);
+    try {
+      const { data: yearRow } = await supabase
+        .from('academic_years').select('id').eq('is_current', true).limit(1).single();
+      if (!yearRow) throw new Error('Aucune année scolaire active.');
+
+      const { error } = await supabase.from('class_subjects').upsert({
+        class_id:         selectedClass,
+        subject_id:       selectedSubj,
+        teacher_id:       user.id,
+        coefficient:      coeff,
+        academic_year_id: yearRow.id,
+      }, { onConflict: 'class_id,subject_id,academic_year_id' });
+      if (error) throw error;
+
+      showNotif('success', 'Classe ajoutée avec succès !');
+      setShowAddModal(false);
+      setSelectedSubj('');
+      setSelectedClass('');
+      setCoeff(1);
+      loadData();
+    } catch (err) {
+      showNotif('error', 'Erreur : ' + err.message);
+    } finally {
+      setSavingClass(false);
+    }
+  };
+
+  const removeClassAssignment = async (csId) => {
+    setRemovingId(csId);
+    const { error } = await supabase.from('class_subjects').delete().eq('id', csId).eq('teacher_id', user.id);
+    if (!error) {
+      setClassSubjects(prev => prev.filter((_, i) => {
+        // On identifie la ligne par index car on n'a pas l'id dans le select actuel
+        return true; // on recharge tout
+      }));
+      showNotif('success', 'Classe retirée.');
+      loadData();
+    } else {
+      showNotif('error', 'Erreur : ' + error.message);
+    }
+    setRemovingId(null);
   };
 
   const handleAvatarChange = (e) => {
@@ -281,6 +345,15 @@ const TeacherProfile = () => {
               </h3>
               <p>{classSubjects.length} affectation{classSubjects.length !== 1 ? 's' : ''}</p>
             </div>
+            {!user?.isDemo && (
+              <button
+                className="btn-sm btn-green"
+                onClick={() => { setShowAddModal(true); setSelectedSubj(''); setSelectedClass(''); setCoeff(1); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}
+              >
+                <Plus size={13} /> Ajouter une classe
+              </button>
+            )}
           </div>
           <div className="card-body">
             {user?.isDemo ? (
@@ -322,32 +395,48 @@ const TeacherProfile = () => {
               </div>
             ) : (
               classSubjects.map((cs, i) => (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                <div key={cs.id || i} style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
                   padding: '10px 0',
-                  borderBottom: i < classSubjects.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                  borderBottom: i < classSubjects.length - 1 ? '1px solid var(--bg)' : 'none',
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{
-                      width: '36px', height: '36px', borderRadius: '10px',
-                      background: 'rgba(59,130,246,0.1)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <BookOpen size={16} color="#3B82F6" />
+                  <div style={{
+                    width: '36px', height: '36px', borderRadius: '10px',
+                    background: 'rgba(59,130,246,0.1)', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <BookOpen size={16} color="#3B82F6" />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-dark)' }}>
+                      {cs.subjects?.name || '—'}
                     </div>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-dark)' }}>
-                        {cs.subjects?.name || '—'}
-                      </div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-light)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <School size={11} /> {cs.classes?.name || '—'} {cs.classes?.level ? `· ${cs.classes.level}` : ''}
-                      </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-light)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                      <School size={11} /> {cs.classes?.name || '—'} {cs.classes?.level ? `· ${cs.classes.level}` : ''}
                     </div>
                   </div>
                   <span style={{
                     padding: '3px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 700,
-                    background: 'rgba(34,197,94,0.1)', color: 'var(--green)',
+                    background: 'rgba(34,197,94,0.1)', color: 'var(--green)', flexShrink: 0,
                   }}>×{cs.coefficient || 1}</span>
+                  {!user?.isDemo && (
+                    <button
+                      onClick={() => removeClassAssignment(cs.id)}
+                      disabled={removingId === cs.id}
+                      title="Retirer cette classe"
+                      style={{
+                        width: '28px', height: '28px', borderRadius: '7px', flexShrink: 0,
+                        border: '1.5px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)',
+                        color: '#ef4444', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.15)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.06)'}
+                    >
+                      {removingId === cs.id ? <Loader size={12} /> : <Trash2 size={13} />}
+                    </button>
+                  )}
                 </div>
               ))
             )}
@@ -401,6 +490,101 @@ const TeacherProfile = () => {
         )}
 
       </div>
+
+      {/* ── Modal : Ajouter une classe ── */}
+      {showAddModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+          backdropFilter: 'blur(4px)', zIndex: 1300,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
+        }}>
+          <div style={{
+            background: 'var(--bg-card)', borderRadius: '20px', padding: '28px',
+            width: '100%', maxWidth: '440px',
+            border: '1px solid var(--border)', boxShadow: '0 24px 60px rgba(0,0,0,0.2)',
+            animation: 'fade-up 0.25s ease',
+          }}>
+            {/* En-tête */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '22px' }}>
+              <div style={{ width: '42px', height: '42px', borderRadius: '11px', background: 'rgba(59,130,246,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <BookOpen size={20} color="#3b82f6" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text-dark)' }}>Ajouter une classe</h3>
+                <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-light)' }}>Choisissez la matière et la classe</p>
+              </div>
+              <button onClick={() => setShowAddModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-light)' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+              {/* Matière — select depuis la BDD */}
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '7px' }}>
+                  Matière *
+                </label>
+                <select
+                  value={selectedSubj}
+                  onChange={e => setSelectedSubj(e.target.value)}
+                  style={{
+                    width: '100%', padding: '10px 14px', borderRadius: '9px',
+                    border: `1.5px solid ${selectedSubj ? 'var(--green)' : 'var(--border)'}`,
+                    background: selectedSubj ? 'var(--green-pale)' : 'var(--bg)',
+                    color: 'var(--text-dark)', fontSize: '13px', outline: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value="">-- Choisir une matière --</option>
+                  {allSubjects.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Classe */}
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '7px' }}>
+                  Classe *
+                </label>
+                <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '9px', border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text-dark)', fontSize: '13px', outline: 'none' }}>
+                  <option value="">-- Choisir une classe --</option>
+                  {allClasses.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} {c.level ? `· ${c.level}` : ''}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Coefficient */}
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '7px' }}>
+                  Coefficient
+                </label>
+                <select value={coeff} onChange={e => setCoeff(Number(e.target.value))}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '9px', border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text-dark)', fontSize: '13px', outline: 'none' }}>
+                  {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Boutons */}
+            <div style={{ display: 'flex', gap: '10px', marginTop: '22px' }}>
+              <button onClick={() => setShowAddModal(false)}
+                style={{ flex: 1, padding: '11px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-mid)', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}>
+                Annuler
+              </button>
+              <button onClick={addClassAssignment} disabled={savingClass || !selectedSubj || !selectedClass}
+                style={{ flex: 2, padding: '11px', borderRadius: '10px', border: 'none', background: (!selectedSubj || !selectedClass) ? 'var(--border)' : 'var(--green)', color: (!selectedSubj || !selectedClass) ? 'var(--text-light)' : '#fff', cursor: (!selectedSubj || !selectedClass) ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px' }}>
+                {savingClass ? <><Loader size={14} /> Enregistrement…</> : <><Plus size={14} /> Ajouter</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </section>
   );
 };

@@ -47,7 +47,8 @@ export const AuthProvider = ({ children }) => {
         name:                 profile.full_name || realUser.email.split('@')[0],
         displayRole:          getDisplayRole(profile.role),
         avatar:               profile.avatar_url || 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200&q=80',
-        onboardingCompleted:  profile.onboarding_completed
+        onboardingCompleted:  profile.onboarding_completed,
+        institutionId:        profile.institution_id || null,
       });
       routeByRole(profile.role, profile.onboarding_completed);
     } else {
@@ -66,6 +67,7 @@ export const AuthProvider = ({ children }) => {
 
   const getDisplayRole = (role) => {
     const map = {
+      super_admin:    'Délégué Départemental',
       admin:          'Administrateur',
       sub_admin:      'Sous-Administrateur',
       parent:         'Parent',
@@ -82,7 +84,8 @@ export const AuthProvider = ({ children }) => {
     if (role === 'parent'         && !onboardingCompleted) { navigate('/onboarding-parent');       return; }
     if (role === 'teacher_course' && !onboardingCompleted) { navigate('/onboarding-teacher');      return; }
     if (role === 'teacher_head'   && !onboardingCompleted) { navigate('/onboarding-teacher-head'); return; }
-    if (role === 'counselor'      && !onboardingCompleted) { navigate('/onboarding-counselor');     return; }
+    if (role === 'counselor'      && !onboardingCompleted) { navigate('/onboarding-counselor');    return; }
+    if (role === 'admin'          && !onboardingCompleted) { navigate('/onboarding-admin');        return; }
     if (role === 'parent')  { navigate('/parent');   return; }
     if (role === 'student') { navigate('/profile');  return; }
     if (role === 'teacher_course') { navigate('/grades'); return; }

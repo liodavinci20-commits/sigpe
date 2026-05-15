@@ -10,7 +10,7 @@ const STEPS = [
 ];
 
 const OnboardingTeacherHead = () => {
-  const { user, setUser } = useAuth();
+  const { user, setUser, logout } = useAuth();
   const navigate          = useNavigate();
 
   const [step,         setStep]         = useState(1);
@@ -312,7 +312,7 @@ const OnboardingTeacherHead = () => {
         {/* Boutons navigation */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '28px', gap: '12px' }}>
           <button
-            onClick={() => step > 1 ? setStep(s => s - 1) : navigate('/login')}
+            onClick={() => step > 1 ? setStep(s => s - 1) : logout()}
             style={{
               display: 'flex', alignItems: 'center', gap: '6px',
               padding: '11px 20px', borderRadius: '10px', border: '1.5px solid rgba(255,255,255,0.15)',
